@@ -92,7 +92,12 @@
     th.short-cost::after { content: 'Cost'; } th.short-sale::after { content: 'Sale'; }
     th.short-cost span, th.short-sale span { display: none; }
   }
-  .hidecost .cost { display: none !important; }
+  /* cost, margin and vendor are masked like a password until the eye is tapped */
+  .cost .real { display: none; } .cost .mask { display: inline; letter-spacing: .12em; color: var(--muted); }
+  .revealed .cost .real { display: inline; } .revealed .cost .mask { display: none; }
+  .eye { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .eye.on { color: var(--ink); border-color: var(--gold); }
+  .eye svg { width: 18px; height: 18px; }
   @media (prefers-reduced-motion: no-preference) { .item { animation: in .18s ease-out; } @keyframes in { from { opacity: .6; transform: translateY(4px); } } }
 </style>
 </head>
@@ -119,11 +124,13 @@
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const money = v => (v == null || isNaN(v)) ? '—' : '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const secret = html => `<span class="cost"><span class="real">${html}</span><span class="mask">•••••</span></span>`;   // password-style
+  const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1"/><path d="M6.6 6.6C3.6 8.6 2 12 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
   const num = v => { const n = parseFloat(String(v).replace(/[₹,\s]/g, '')); return isNaN(n) ? null : n; };
   const normRef = s => String(s || '').trim().toUpperCase().replace(/^REF\.?\s*/, '').replace(/^#/, '');
 
-  let items = [], prices = {}, current = null, showCost = true;
-  try { showCost = localStorage.getItem('gng-showcost') !== '0'; } catch (e) {}
+  let items = [], prices = {}, current = null, revealed = false;
 
   function setStatus(t, err) { const s = $('#status'); s.textContent = t || ''; s.classList.toggle('err', !!err); }
 
@@ -143,22 +150,23 @@
   function renderItem(it, pr, editing) {
     const p = calc(pr);
     const v = $('#view'); v.innerHTML = '';
-    const el = document.createElement('div'); el.className = 'item' + (showCost ? '' : ' hidecost');
+    revealed = false;
+    const el = document.createElement('div'); el.className = 'item';
     const photo = it.photo ? `<img data-photo="${esc(it.photo)}" alt="${esc(it.title)}">` : '';
     const table = p.has ? `
       <div class="kpi">
-        <div class="cost"><b>${money(p.cost)}</b><span>Cost</span></div>
+        <div><b>${secret(money(p.cost))}</b><span>Cost</span></div>
         <div><b>${money(p.sale)}</b><span>Sale price</span></div>
-        <div class="m cost ${p.margin != null && p.margin < 0 ? 'neg' : ''}"><b>${money(p.margin)}</b><span>Margin${p.pct != null ? ' · ' + p.pct.toFixed(0) + '%' : ''}</span></div>
+        <div class="m ${p.margin != null && p.margin < 0 ? 'neg' : ''}"><b>${secret(money(p.margin))}</b><span>Margin${p.pct != null ? ' · ' + secret(p.pct.toFixed(0) + '%') : ''}</span></div>
       </div>
       <div class="tbl"><table>
-        <thead><tr><th>Item</th><th class="n">Qty</th><th class="n cost short-cost"><span>Unit cost</span></th><th class="n short-sale"><span>Unit sale</span></th><th class="n cost line">Line cost</th></tr></thead>
+        <thead><tr><th>Item</th><th class="n">Qty</th><th class="n short-cost"><span>Unit cost</span></th><th class="n short-sale"><span>Unit sale</span></th><th class="n line">Line cost</th></tr></thead>
         <tbody>
-          ${p.comps.map(c => `<tr><td>${esc(c.name)}</td><td class="n">${c.qty}</td><td class="n cost">${money(c.unit_cost)}</td><td class="n">${money(c.unit_sale)}</td><td class="n cost line">${money(c.line)}</td></tr>`).join('')}
-          ${p.extra ? `<tr><td>${esc(p.extra_label)}</td><td class="n">1</td><td class="n cost">${money(p.extra)}</td><td class="n">—</td><td class="n cost line">${money(p.extra)}</td></tr>` : ''}
-          <tr class="total"><td>Total</td><td></td><td class="n cost">${money(p.cost)}</td><td class="n">${money(p.sale)}</td><td class="n cost line"></td></tr>
+          ${p.comps.map(c => `<tr><td>${esc(c.name)}</td><td class="n">${c.qty}</td><td class="n">${secret(money(c.unit_cost))}</td><td class="n">${money(c.unit_sale)}</td><td class="n line">${secret(money(c.line))}</td></tr>`).join('')}
+          ${p.extra ? `<tr><td>${esc(p.extra_label)}</td><td class="n">1</td><td class="n">${secret(money(p.extra))}</td><td class="n">—</td><td class="n line">${secret(money(p.extra))}</td></tr>` : ''}
+          <tr class="total"><td>Total</td><td></td><td class="n">${secret(money(p.cost))}</td><td class="n">${money(p.sale)}</td><td class="n line"></td></tr>
         </tbody></table></div>
-      ${p.vendor ? `<div class="foot cost">Vendor: ${esc(p.vendor)}</div>` : ''}
+      ${p.vendor ? `<div class="foot">Vendor: ${secret(esc(p.vendor))}</div>` : ''}
       ${p.notes ? `<div class="foot">${esc(p.notes)}</div>` : ''}
       <div class="foot">Prices updated ${p.updated ? esc(p.updated.replace('T', ' ').slice(0, 16)) : '—'}</div>`
       : `<div class="empty">No prices entered yet for this item.</div>`;
@@ -167,13 +175,13 @@
       <p class="desc">${esc(it.desc || '')}</p>
       <div class="meta">Ref. ${esc(it.ref)} · ${esc(it.project_name || it.project)}${it.tier ? ' · ' + esc(it.tier) : ''}${it.status === 'draft' ? ' · <span class="draft">draft</span>' : ''}</div>
       <div id="pricing">${table}</div>
-      <div class="actions"><button type="button" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button><button type="button" class="ghost" id="btnBack">Back to list</button></div>
-      <label class="toggle"><input type="checkbox" id="chkCost" ${showCost ? 'checked' : ''}> Show cost and margin</label>
+      <div class="actions"><button type="button" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button>${p.has ? `<button type="button" class="eye" id="btnEye" aria-pressed="false" title="Show cost, margin and vendor">${EYE} Show cost</button>` : ''}<button type="button" class="ghost" id="btnBack">Back to list</button></div>
     </div>`;
     v.appendChild(el); gh.hydratePhotos(el);
     $('#btnEdit').onclick = () => renderEditor(it, pr);
     $('#btnBack').onclick = () => { current = null; v.innerHTML = ''; showList(); };
-    $('#chkCost').onchange = e => { showCost = e.target.checked; try { localStorage.setItem('gng-showcost', showCost ? '1' : '0'); } catch (x) {} el.classList.toggle('hidecost', !showCost); };
+    const eye = $('#btnEye');
+    if (eye) eye.onclick = () => { revealed = !revealed; el.classList.toggle('revealed', revealed); eye.classList.toggle('on', revealed); eye.setAttribute('aria-pressed', String(revealed)); eye.innerHTML = (revealed ? EYE_OFF : EYE) + (revealed ? ' Hide cost' : ' Show cost'); };
     if (editing) renderEditor(it, pr);
   }
 
@@ -237,7 +245,7 @@
       groups[g].sort((a, b) => a.ref.localeCompare(b.ref)).forEach(it => {
         const pr = calc(prices[it.ref]);
         const r = document.createElement('div'); r.className = 'row';
-        r.innerHTML = `${it.photo ? `<img data-photo="${esc(it.photo)}" alt="">` : '<div class="noimg"></div>'}<div><div class="t">${esc(it.title)}</div><div class="s">${pr.has ? `<span class="priced">${showCost ? money(pr.cost) + ' → ' : ''}${money(pr.sale)}</span>` : 'no prices yet'}${it.status === 'draft' ? ' · draft' : ''}</div></div><div class="ref">${esc(it.ref)}</div>`;
+        r.innerHTML = `${it.photo ? `<img data-photo="${esc(it.photo)}" alt="">` : '<div class="noimg"></div>'}<div><div class="t">${esc(it.title)}</div><div class="s">${pr.has ? `<span class="priced">${money(pr.sale)}</span>` : 'no prices yet'}${it.status === 'draft' ? ' · draft' : ''}</div></div><div class="ref">${esc(it.ref)}</div>`;
         r.onclick = () => open(it.ref);
         l.appendChild(r);
       });
