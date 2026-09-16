@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#102850">
+<title>GnG Price Book</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@400;500&family=Montserrat:wght@300;400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #F6F2E9; --card: #FFFFFF; --ink: #141414; --muted: #6E6A63; --line: #E3DCCD; --soft: #FAF7F1;
+    --navy: #102850; --gold: #C9A05A; --ok: #2F6B45; --warn: #A33A3A; --input: #FFFFFF; --input-line: #C9C2B4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F1C33; --card: #162642; --ink: #F1ECE1; --muted: #A9A297; --line: #2A3B5C; --soft: #1B2D4D;
+      --navy: #F1ECE1; --gold: #D6B06A; --ok: #7FC59A; --warn: #E08A8A; --input: #0F1C33; --input-line: #3A4C6E;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1C33; --card: #162642; --ink: #F1ECE1; --muted: #A9A297; --line: #2A3B5C; --soft: #1B2D4D;
+    --navy: #F1ECE1; --gold: #D6B06A; --ok: #7FC59A; --warn: #E08A8A; --input: #0F1C33; --input-line: #3A4C6E;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Montserrat', 'Jost', system-ui, sans-serif; font-size: 15px; line-height: 1.5; }
+  .wrap { max-width: 640px; margin: 0 auto; padding-block: 20px 48px; padding-inline: 18px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  header h1 { font-family: 'Bodoni Moda', 'Playfair Display', Georgia, serif; font-weight: 500; font-size: 22px; letter-spacing: .02em; margin: 0; color: var(--navy); }
+  header .eyebrow { font-size: 10px; letter-spacing: .32em; text-transform: uppercase; color: var(--gold); font-weight: 500; display: block; margin-bottom: 4px; }
+  .rule { height: 1px; background: var(--gold); border: 0; width: 56px; margin: 0 0 18px; }
+
+  .search { display: flex; gap: 8px; }
+  .search input { flex: 1; min-width: 0; font: inherit; font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: .12em; padding: 12px 14px; border: 1px solid var(--input-line); border-radius: 10px; background: var(--input); color: var(--ink); }
+  .search input:focus, input:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+  button { font: inherit; font-weight: 500; font-size: 15px; padding: 12px 18px; border: 0; border-radius: 10px; background: var(--navy); color: var(--bg); cursor: pointer; }
+  :root[data-theme="dark"] button, body.dark button { color: var(--bg); }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  button.small { font-size: 13px; padding: 8px 12px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { min-height: 20px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .status.err { color: var(--warn); }
+
+  .list { margin-top: 18px; }
+  .list h2 { font-size: 10px; letter-spacing: .32em; text-transform: uppercase; color: var(--muted); font-weight: 500; margin: 18px 0 8px; }
+  .row { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .row:hover { background: var(--soft); }
+  .row img, .row .noimg { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; background: var(--soft); }
+  .row .t { font-size: 14px; }
+  .row .s { font-size: 12px; color: var(--muted); }
+  .row .ref { font-variant-numeric: tabular-nums; letter-spacing: .1em; font-size: 12px; color: var(--muted); }
+  .row .priced { color: var(--ok); }
+
+  .item { margin-top: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .item img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--soft); }
+  .item .body { padding: 16px 18px 18px; }
+  .item h3 { font-family: 'Bodoni Moda', 'Playfair Display', Georgia, serif; font-weight: 400; font-size: 24px; margin: 0; color: var(--navy); text-wrap: balance; }
+  .item .desc { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+  .item .meta { font-size: 10px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold); margin-top: 10px; font-weight: 500; }
+  .item .meta .draft { color: var(--warn); }
+
+  .kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0 12px; }
+  .kpi > div { background: var(--soft); border-radius: 10px; padding: 10px 8px; text-align: center; }
+  .kpi b { display: block; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .kpi .m b { color: var(--ok); }
+  .kpi .m.neg b { color: var(--warn); }
+
+  .tbl { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  td.n, th.n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  tr.total td { font-weight: 600; border-bottom: 0; }
+  .foot { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 14px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 10px 0; }
+
+  /* editor */
+  .edit table input { width: 100%; font: inherit; font-size: 14px; padding: 7px 8px; border: 1px solid var(--input-line); border-radius: 6px; background: var(--input); color: var(--ink); }
+  .edit table input.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .edit .del { background: none; border: 0; color: var(--warn); padding: 4px; font-size: 16px; }
+  .edit .field { margin-top: 10px; }
+  .edit label { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .edit .field input, .edit .field textarea { width: 100%; font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--input-line); border-radius: 8px; background: var(--input); color: var(--ink); }
+  .edit .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 480px) {
+    .edit .two { grid-template-columns: 1fr; } .kpi b { font-size: 17px; }
+    .line { display: none; }                     /* per-line cost: the total is in the tiles */
+    th.short-cost::after { content: 'Cost'; } th.short-sale::after { content: 'Sale'; }
+    th.short-cost span, th.short-sale span { display: none; }
+  }
+  .hidecost .cost { display: none !important; }
+  @media (prefers-reduced-motion: no-preference) { .item { animation: in .18s ease-out; } @keyframes in { from { opacity: .6; transform: translateY(4px); } } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <header>
+    <div><span class="eyebrow">Gifts N' Glam · internal</span><h1>Price Book</h1></div>
+    <button class="ghost small" id="btnAll" type="button">All items</button> <button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button>
+  </header>
+  <hr class="rule">
+
+  <div class="search">
+    <input type="text" id="ref" inputmode="numeric" placeholder="Reference number" autocomplete="off" aria-label="Reference number">
+    <button id="btnFind" type="button">Find</button>
+  </div>
+  <div class="status" id="status">Loading…</div>
+
+  <div id="view"></div>
+  <div class="list" id="list" hidden></div>
+</div>
+<script>
+
+(function () {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const money = v => (v == null || isNaN(v)) ? '—' : '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const num = v => { const n = parseFloat(String(v).replace(/[₹,\s]/g, '')); return isNaN(n) ? null : n; };
+  const normRef = s => String(s || '').trim().toUpperCase().replace(/^REF\.?\s*/, '').replace(/^#/, '');
+
+  let items = [], prices = {}, current = null, showCost = true;
+  try { showCost = localStorage.getItem('gng-showcost') !== '0'; } catch (e) {}
+
+  function setStatus(t, err) { const s = $('#status'); s.textContent = t || ''; s.classList.toggle('err', !!err); }
+
+  // ---------- pricing maths (same shape the studio sync writes) ----------
+  function calc(pr) {
+    pr = pr || {};
+    const comps = (pr.components || []).map(c => { const qty = num(c.qty) ?? 1, uc = num(c.unit_cost) ?? 0; return { name: c.name || '', qty, unit_cost: uc, unit_sale: num(c.unit_sale), line: qty * uc }; });
+    const extra = num(pr.extra_cost) ?? 0;
+    const cost = comps.reduce((a, c) => a + c.line, 0) + extra;
+    const sale = num(pr.sale);
+    const margin = sale == null ? null : sale - cost;
+    const pct = (sale && margin != null) ? margin / sale * 100 : null;
+    return { comps, extra, extra_label: pr.extra_label || 'Packaging and box', cost, sale, margin, pct, vendor: pr.vendor || '', notes: pr.notes || '', updated: pr.updated || null, has: comps.length > 0 || sale != null };
+  }
+
+  // ---------- rendering ----------
+  function renderItem(it, pr, editing) {
+    const p = calc(pr);
+    const v = $('#view'); v.innerHTML = '';
+    const el = document.createElement('div'); el.className = 'item' + (showCost ? '' : ' hidecost');
+    const photo = it.photo ? `<img data-photo="${esc(it.photo)}" alt="${esc(it.title)}">` : '';
+    const table = p.has ? `
+      <div class="kpi">
+        <div class="cost"><b>${money(p.cost)}</b><span>Cost</span></div>
+        <div><b>${money(p.sale)}</b><span>Sale price</span></div>
+        <div class="m cost ${p.margin != null && p.margin < 0 ? 'neg' : ''}"><b>${money(p.margin)}</b><span>Margin${p.pct != null ? ' · ' + p.pct.toFixed(0) + '%' : ''}</span></div>
+      </div>
+      <div class="tbl"><table>
+        <thead><tr><th>Item</th><th class="n">Qty</th><th class="n cost short-cost"><span>Unit cost</span></th><th class="n short-sale"><span>Unit sale</span></th><th class="n cost line">Line cost</th></tr></thead>
+        <tbody>
+          ${p.comps.map(c => `<tr><td>${esc(c.name)}</td><td class="n">${c.qty}</td><td class="n cost">${money(c.unit_cost)}</td><td class="n">${money(c.unit_sale)}</td><td class="n cost line">${money(c.line)}</td></tr>`).join('')}
+          ${p.extra ? `<tr><td>${esc(p.extra_label)}</td><td class="n">1</td><td class="n cost">${money(p.extra)}</td><td class="n">—</td><td class="n cost line">${money(p.extra)}</td></tr>` : ''}
+          <tr class="total"><td>Total</td><td></td><td class="n cost">${money(p.cost)}</td><td class="n">${money(p.sale)}</td><td class="n cost line"></td></tr>
+        </tbody></table></div>
+      ${p.vendor ? `<div class="foot cost">Vendor: ${esc(p.vendor)}</div>` : ''}
+      ${p.notes ? `<div class="foot">${esc(p.notes)}</div>` : ''}
+      <div class="foot">Prices updated ${p.updated ? esc(p.updated.replace('T', ' ').slice(0, 16)) : '—'}</div>`
+      : `<div class="empty">No prices entered yet for this item.</div>`;
+    el.innerHTML = `${photo}<div class="body">
+      <h3>${esc(it.title)}</h3>
+      <p class="desc">${esc(it.desc || '')}</p>
+      <div class="meta">Ref. ${esc(it.ref)} · ${esc(it.project_name || it.project)}${it.tier ? ' · ' + esc(it.tier) : ''}${it.status === 'draft' ? ' · <span class="draft">draft</span>' : ''}</div>
+      <div id="pricing">${table}</div>
+      <div class="actions"><button type="button" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button><button type="button" class="ghost" id="btnBack">Back to list</button></div>
+      <label class="toggle"><input type="checkbox" id="chkCost" ${showCost ? 'checked' : ''}> Show cost and margin</label>
+    </div>`;
+    v.appendChild(el); gh.hydratePhotos(el);
+    $('#btnEdit').onclick = () => renderEditor(it, pr);
+    $('#btnBack').onclick = () => { current = null; v.innerHTML = ''; showList(); };
+    $('#chkCost').onchange = e => { showCost = e.target.checked; try { localStorage.setItem('gng-showcost', showCost ? '1' : '0'); } catch (x) {} el.classList.toggle('hidecost', !showCost); };
+    if (editing) renderEditor(it, pr);
+  }
+
+  function renderEditor(it, pr) {
+    const p = calc(pr);
+    const host = $('#pricing'); host.className = 'edit';
+    const rows = (p.comps.length ? p.comps : [{ name: '', qty: 1, unit_cost: '', unit_sale: '' }]);
+    host.innerHTML = `
+      <div class="tbl"><table id="edRows">
+        <thead><tr><th>Component</th><th class="n">Qty</th><th class="n">Cost ₹</th><th class="n">Sale ₹</th><th></th></tr></thead>
+        <tbody>${rows.map(r => rowHtml(r)).join('')}</tbody>
+      </table></div>
+      <div class="actions"><button type="button" class="ghost small" id="edAdd">+ Add component</button></div>
+      <div class="field two">
+        <div><label for="edExtraLabel">Extra cost label</label><input id="edExtraLabel" type="text" value="${esc(p.extra_label)}"></div>
+        <div><label for="edExtra">Extra cost ₹ (box, packaging, labour)</label><input id="edExtra" type="text" inputmode="decimal" value="${p.extra || ''}"></div>
+      </div>
+      <div class="field two">
+        <div><label for="edSale">Sale price of the whole item ₹</label><input id="edSale" type="text" inputmode="decimal" value="${p.sale ?? ''}"></div>
+        <div><label for="edVendor">Vendor</label><input id="edVendor" type="text" value="${esc(p.vendor)}"></div>
+      </div>
+      <div class="field"><label for="edNotes">Notes</label><input id="edNotes" type="text" value="${esc(p.notes)}"></div>
+      <div class="foot" id="edTotals"></div>
+      <div class="actions"><button type="button" id="edSave">Save prices</button><button type="button" class="ghost" id="edCancel">Cancel</button></div>`;
+    const totals = () => {
+      const c = calc(readEditor());
+      $('#edTotals').textContent = `Cost ${money(c.cost)} · Sale ${money(c.sale)} · Margin ${money(c.margin)}${c.pct != null ? ' (' + c.pct.toFixed(0) + '%)' : ''}`;
+    };
+    host.querySelectorAll('input').forEach(i => i.addEventListener('input', totals));
+    host.querySelectorAll('.del').forEach(b => b.onclick = () => { b.closest('tr').remove(); totals(); });
+    $('#edAdd').onclick = () => { $('#edRows tbody').insertAdjacentHTML('beforeend', rowHtml({ name: '', qty: 1, unit_cost: '', unit_sale: '' })); const tr = $('#edRows tbody').lastElementChild; tr.querySelectorAll('input').forEach(i => i.addEventListener('input', totals)); tr.querySelector('.del').onclick = () => { tr.remove(); totals(); }; tr.querySelector('input').focus(); };
+    $('#edCancel').onclick = () => renderItem(it, prices[it.ref]);
+    $('#edSave').onclick = async () => {
+      const data = readEditor(); data.updated = new Date().toISOString();
+      $('#edSave').disabled = true; setStatus('Saving…');
+      try { await gh.savePrices(it.ref, data); prices[it.ref] = data; setStatus('Saved to GitHub'); renderItem(it, data); }
+      catch (e) { setStatus('Could not save: ' + e.message, true); $('#edSave').disabled = false; }
+    };
+    totals();
+    document.querySelector('.actions').scrollIntoView({ block: 'nearest' });
+  }
+  function rowHtml(r) {
+    return `<tr><td><input type="text" class="c-name" value="${esc(r.name)}" placeholder="e.g. Stainless-steel flask"></td>
+      <td><input type="text" class="n c-qty" inputmode="decimal" value="${r.qty ?? 1}"></td>
+      <td><input type="text" class="n c-cost" inputmode="decimal" value="${r.unit_cost ?? ''}"></td>
+      <td><input type="text" class="n c-sale" inputmode="decimal" value="${r.unit_sale ?? ''}"></td>
+      <td><button type="button" class="del" aria-label="Remove">✕</button></td></tr>`;
+  }
+  function readEditor() {
+    const comps = [...document.querySelectorAll('#edRows tbody tr')].map(tr => ({ name: tr.querySelector('.c-name').value.trim(), qty: num(tr.querySelector('.c-qty').value) ?? 1, unit_cost: num(tr.querySelector('.c-cost').value) ?? 0, unit_sale: num(tr.querySelector('.c-sale').value) })).filter(c => c.name);
+    return { components: comps, extra_label: $('#edExtraLabel').value.trim() || 'Packaging and box', extra_cost: num($('#edExtra').value) ?? 0, sale: num($('#edSale').value), vendor: $('#edVendor').value.trim(), notes: $('#edNotes').value.trim() };
+  }
+
+  function showList() {
+    const l = $('#list'); l.hidden = false; l.innerHTML = '';
+    if (!items.length) { l.innerHTML = '<div class="empty">No items synced yet. In Claude Code, run /studio sync.</div>'; return; }
+    const groups = {};
+    items.forEach(it => { (groups[it.project_name || it.project] = groups[it.project_name || it.project] || []).push(it); });
+    Object.keys(groups).sort().forEach(g => {
+      const h = document.createElement('h2'); h.textContent = g; l.appendChild(h);
+      groups[g].sort((a, b) => a.ref.localeCompare(b.ref)).forEach(it => {
+        const pr = calc(prices[it.ref]);
+        const r = document.createElement('div'); r.className = 'row';
+        r.innerHTML = `${it.photo ? `<img data-photo="${esc(it.photo)}" alt="">` : '<div class="noimg"></div>'}<div><div class="t">${esc(it.title)}</div><div class="s">${pr.has ? `<span class="priced">${showCost ? money(pr.cost) + ' → ' : ''}${money(pr.sale)}</span>` : 'no prices yet'}${it.status === 'draft' ? ' · draft' : ''}</div></div><div class="ref">${esc(it.ref)}</div>`;
+        r.onclick = () => open(it.ref);
+        l.appendChild(r);
+      });
+    });
+    gh.hydratePhotos(l);
+  }
+
+  async function open(ref) {
+    ref = normRef(ref);
+    const it = items.find(i => normRef(i.ref) === ref || normRef(i.ref).replace(/^0+/, '') === ref.replace(/^0+/, ''));
+    if (!it) { setStatus('No item with reference ' + ref, true); return; }
+    current = it.ref; $('#ref').value = it.ref; $('#list').hidden = true; setStatus('');
+    renderItem(it, prices[it.ref]);
+  }
+
+  $('#btnFind').onclick = () => open($('#ref').value);
+  $('#ref').addEventListener('keydown', e => { if (e.key === 'Enter') open($('#ref').value); });
+  $('#btnAll').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); showList(); };
+
+
+  // ---------- GitHub storage ----------
+  // Data lives in a PRIVATE repo; this page (public, no data) reads and writes it with a fine-grained token
+  // the owner pastes once on this device. Every save is a commit -> full price history in the repo.
+  const DATA_REPO = window.PRICEBOOK_REPO || 'Henberg11/gng-price-book-data';
+  const gh = (() => {
+    let token = ''; try { token = localStorage.getItem('gng-gh-token') || ''; } catch (e) {}
+    const shas = {}, photoUrls = {};
+    const api = async (path, opts = {}) => {
+      const r = await fetch(`https://api.github.com/repos/${DATA_REPO}/contents/${path}`, { method: opts.method || 'GET', body: opts.body, headers: { Authorization: 'Bearer ' + token, Accept: opts.raw ? 'application/vnd.github.raw' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.headers || {}) } });
+      if (r.status === 401) throw Object.assign(new Error('Token rejected. Enter it again.'), { code: 'auth' });
+      if (r.status === 404 && opts.allow404) return null;
+      if (!r.ok) throw new Error('GitHub ' + r.status + (r.status === 403 ? ' (rate limit or missing permission)' : r.status === 404 ? ' (repo not found — check the token has access)' : ''));
+      return r;
+    };
+    const readJson = async path => { const r = await api(path, { allow404: true }); if (!r) return null; const j = await r.json(); shas[path] = j.sha; return JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\n/g, ''))))); };
+    return {
+      hasToken: () => !!token,
+      setToken: t => { token = t.trim(); try { localStorage.setItem('gng-gh-token', token); } catch (e) {} },
+      forget: () => { token = ''; try { localStorage.removeItem('gng-gh-token'); } catch (e) {} },
+      index: () => readJson('index.json'),
+      getPrices: ref => readJson('prices/' + ref + '.json'),
+      savePrices: async (ref, data) => {
+        const path = 'prices/' + ref + '.json';
+        if (!(path in shas)) await readJson(path);
+        const body = { message: `Prices: ${ref} (${new Date().toISOString().slice(0, 16)})`, content: btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2)))) };
+        if (shas[path]) body.sha = shas[path];
+        const r = await api(path, { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+        const j = await r.json(); shas[path] = j.content.sha;
+      },
+      photo: async path => {
+        if (photoUrls[path]) return photoUrls[path];
+        const r = await api(path, { raw: true, allow404: true }); if (!r) return null;
+        return (photoUrls[path] = URL.createObjectURL(await r.blob()));
+      },
+      hydratePhotos: root => { root.querySelectorAll('img[data-photo]').forEach(async img => { const u = await gh.photo(img.dataset.photo); if (u) img.src = u; }); }
+    };
+  })();
+
+  function askToken(msg) {
+    $('#view').innerHTML = '';
+    $('#list').hidden = false;
+    $('#list').innerHTML = `<div class="item"><div class="body"><h3>Sign in</h3><p class="desc">${esc(msg || 'Paste your GitHub token once. It stays on this device only.')}</p>
+      <div class="edit"><div class="field"><label for="tok">GitHub token</label><input id="tok" type="password" autocomplete="off"></div>
+      <div class="actions"><button type="button" id="tokGo">Open Price Book</button></div></div></div></div>`;
+    $('#tokGo').onclick = () => { if (!$('#tok').value.trim()) return; gh.setToken($('#tok').value); boot(); };
+    $('#tok').addEventListener('keydown', e => { if (e.key === 'Enter') $('#tokGo').click(); });
+    setStatus('');
+  }
+
+  async function boot() {
+    if (!gh.hasToken()) return askToken();
+    setStatus('Loading…');
+    try {
+      const idx = await gh.index();
+      items = (idx && idx.items) || [];
+      await Promise.all(items.map(async it => { prices[it.ref] = await gh.getPrices(it.ref); }));
+      setStatus('');
+      if (current) { const it = items.find(i => i.ref === current); if (it) return renderItem(it, prices[it.ref]); }
+      showList();
+    } catch (e) {
+      if (e.code === 'auth') { gh.forget(); return askToken('That token was rejected. Paste a valid token.'); }
+      setStatus('Could not load: ' + e.message, true);
+    }
+  }
+  $('#btnLock').onclick = () => { gh.forget(); askToken(); };
+  boot();
+})();
+</script>
+</body>
+</html>
