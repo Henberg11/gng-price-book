@@ -27,6 +27,7 @@
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Montserrat', 'Jost', system-ui, sans-serif; font-size: 15px; line-height: 1.5; }
   .wrap { max-width: 640px; margin: 0 auto; padding-block: 20px 48px; padding-inline: 18px; }
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  .hdr-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   header h1 { font-family: 'Bodoni Moda', 'Playfair Display', Georgia, serif; font-weight: 500; font-size: 22px; letter-spacing: .02em; margin: 0; color: var(--navy); }
   header .eyebrow { font-size: 10px; letter-spacing: .32em; text-transform: uppercase; color: var(--gold); font-weight: 500; display: block; margin-bottom: 4px; }
   .rule { height: 1px; background: var(--gold); border: 0; width: 56px; margin: 0 0 18px; }
@@ -98,6 +99,49 @@
   .eye { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
   .eye.on { color: var(--ink); border-color: var(--gold); }
   .eye svg { width: 18px; height: 18px; }
+  /* ---- invoices ---- */
+  h4.sec { font-size: 10px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold); font-weight: 500; margin: 18px 0 6px; }
+  .edit .field select { width: 100%; font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--input-line); border-radius: 8px; background: var(--input); color: var(--ink); }
+  .edit .field input[type=date] { font-family: inherit; }
+  .inv-row { grid-template-columns: 44px 1fr auto; }
+  .inv-ico { width: 44px; height: 44px; border-radius: 8px; display: grid; place-items: center; font-size: 11px; letter-spacing: .08em; font-weight: 600; background: var(--soft); color: var(--muted); }
+  .inv-ico.invoice { background: var(--navy); color: var(--bg); }
+  .st { text-transform: uppercase; letter-spacing: .08em; font-size: 10px; } .st-paid, .st-accepted { color: var(--ok); } .st-cancelled { color: var(--warn); }
+  .totals { margin-top: 10px; } table.tot { width: 100%; max-width: 360px; margin-left: auto; font-size: 14px; } table.tot td { padding: 5px 4px; border: 0; } table.tot tr.grand td { font-weight: 600; border-top: 1px solid var(--gold); padding-top: 8px; }
+  .words { font-size: 12px; color: var(--muted); text-align: right; margin-top: 4px; font-style: italic; }
+
+  /* ---- printed document: brand kit "Document" fragment ---- */
+  .doc { display: none; }
+  @media print {
+    @page { size: A4; margin: 14mm 18mm; }
+    body { background: #fff !important; color: #141414 !important; }
+    .wrap { display: none !important; }
+    .doc { display: block !important; font-family: 'Montserrat', 'Jost', sans-serif; font-size: 10pt; line-height: 1.45; color: #141414; }
+    .doc .d-head { text-align: center; }
+    .doc .d-logo { height: 13mm; width: auto; display: inline-block; }
+    .doc .d-brand { font-family: 'Bodoni Moda', 'Playfair Display', serif; font-weight: 500; font-size: 14pt; letter-spacing: .29em; text-transform: uppercase; margin-top: 3mm; }
+    .doc .d-tag { font-size: 7pt; letter-spacing: .40em; text-transform: uppercase; color: #3A3836; margin-top: 1mm; }
+    .doc .d-rule { border: 0; height: 0.25pt; background: #C9A05A; width: 34mm; margin: 3.5mm auto; }
+    .doc .d-title { font-family: 'Bodoni Moda', 'Playfair Display', serif; font-size: 17pt; font-weight: 400; text-align: center; margin: 1mm 0 4mm; }
+    .doc .d-meta { display: flex; justify-content: center; gap: 10mm; font-size: 9.5pt; margin-bottom: 6mm; flex-wrap: wrap; }
+    .doc .d-meta span { display: block; font-size: 7pt; letter-spacing: .3em; text-transform: uppercase; color: #6E6A63; }
+    .doc .d-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; margin-bottom: 6mm; }
+    .doc .d-lab { font-size: 7pt; letter-spacing: .3em; text-transform: uppercase; color: #6E6A63; margin-bottom: 1.5mm; }
+    .doc .d-name { font-family: 'Bodoni Moda', 'Playfair Display', serif; font-size: 12.5pt; }
+    .doc table.d-lines { width: 100%; border-collapse: collapse; margin-bottom: 4mm; }
+    .doc table.d-lines th { font-size: 7pt; letter-spacing: .2em; text-transform: uppercase; color: #6E6A63; font-weight: 500; text-align: left; padding: 2mm 1.5mm; border-bottom: 0.25pt solid #C9A05A; }
+    .doc table.d-lines td { padding: 2.2mm 1.5mm; border-bottom: 0.25pt solid #E3DCCD; vertical-align: top; }
+    .doc .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .doc .ref { font-size: 8pt; color: #6E6A63; letter-spacing: .1em; }
+    .doc .d-totals table.tot { width: 70mm; margin-left: auto; font-size: 10.5pt; } .doc table.tot td { padding: 1.4mm 1.5mm; }
+    .doc table.tot tr.grand td { font-weight: 600; border-top: 0.25pt solid #C9A05A; padding-top: 2.5mm; font-size: 12pt; }
+    .doc .words { text-align: right; font-size: 9pt; color: #3A3836; font-style: italic; margin-top: 1mm; }
+    .doc .d-note { margin-top: 5mm; font-size: 9.5pt; color: #3A3836; }
+    .doc .d-block { margin-top: 4mm; font-size: 9.5pt; }
+    .doc .d-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; align-items: end; margin-top: 6mm; page-break-inside: avoid; }
+    .doc .d-sign { text-align: right; font-size: 9.5pt; } .doc .d-sign .d-rule { margin: 0 0 2mm auto; }
+    .doc .d-sign .space { height: 12mm; } .doc .d-sign .d-lab { margin-top: 1mm; }
+  }
   @media (prefers-reduced-motion: no-preference) { .item { animation: in .18s ease-out; } @keyframes in { from { opacity: .6; transform: translateY(4px); } } }
 </style>
 </head>
@@ -105,7 +149,7 @@
 <div class="wrap" id="app">
   <header>
     <div><span class="eyebrow">Gifts N' Glam · internal</span><h1>Price Book</h1></div>
-    <button class="ghost small" id="btnAll" type="button">All items</button> <button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button>
+    <div class="hdr-btns"><button class="ghost small" id="btnAll" type="button">All items</button><button class="ghost small" id="btnInv" type="button">Invoices</button><button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button></div>
   </header>
   <hr class="rule">
 
@@ -118,8 +162,9 @@
   <div id="view"></div>
   <div class="list" id="list" hidden></div>
 </div>
+<div id="doc" class="doc" hidden></div>
+<script src="invoice.js"></script>
 <script>
-
 (function () {
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -287,14 +332,16 @@
       forget: () => { token = ''; try { localStorage.removeItem('gng-gh-token'); } catch (e) {} },
       index: () => readJson('index.json'),
       getPrices: ref => readJson('prices/' + ref + '.json'),
-      savePrices: async (ref, data) => {
-        const path = 'prices/' + ref + '.json';
+      getJson: readJson,
+      putJson: async (path, data, message) => {
         if (!(path in shas)) await readJson(path);
-        const body = { message: `Prices: ${ref} (${new Date().toISOString().slice(0, 16)})`, content: btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2)))) };
+        const body = { message: message || `Update ${path}`, content: btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2)))) };
         if (shas[path]) body.sha = shas[path];
         const r = await api(path, { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
         const j = await r.json(); shas[path] = j.content.sha;
       },
+      list: async dir => { const r = await api(dir, { allow404: true }); if (!r) return []; const j = await r.json(); return Array.isArray(j) ? j.map(e => e.name) : []; },
+      savePrices: (ref, data) => gh.putJson('prices/' + ref + '.json', data, `Prices: ${ref} (${new Date().toISOString().slice(0, 16)})`),
       photo: async path => {
         if (photoUrls[path]) return photoUrls[path];
         const r = await api(path, { raw: true, allow404: true }); if (!r) return null;
@@ -331,6 +378,8 @@
     }
   }
   $('#btnLock').onclick = () => { gh.forget(); askToken(); };
+  $('#btnInv').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Invoices) window.Invoices.open(); };
+  window.PB = { gh, items: () => items, prices: () => prices, $, esc, money, num, setStatus, showList, listEl: () => $('#list'), viewEl: () => $('#view') };
   boot();
 })();
 </script>
