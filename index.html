@@ -23,6 +23,7 @@
     --navy: #F1ECE1; --gold: #D6B06A; --ok: #7FC59A; --warn: #E08A8A; --input: #0F1C33; --input-line: #3A4C6E;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Montserrat', 'Jost', system-ui, sans-serif; font-size: 15px; line-height: 1.5; }
   .wrap { max-width: 640px; margin: 0 auto; padding-block: 20px 48px; padding-inline: 18px; }
@@ -110,6 +111,21 @@
   .totals { margin-top: 10px; } table.tot { width: 100%; max-width: 360px; margin-left: auto; font-size: 14px; } table.tot td { padding: 5px 4px; border: 0; } table.tot tr.grand td { font-weight: 600; border-top: 1px solid var(--gold); padding-top: 8px; }
   .words { font-size: 12px; color: var(--muted); text-align: right; margin-top: 4px; font-style: italic; }
 
+  .sheet-bg { position: fixed; inset: 0; background: rgba(16,40,80,.45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+  .sheet { background: var(--card); color: var(--ink); width: min(560px, 100%); border-radius: 16px 16px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom, 0px)); }
+  .sheet h3 { font-family: 'Bodoni Moda', 'Playfair Display', Georgia, serif; font-weight: 400; font-size: 20px; margin: 0; color: var(--navy); }
+  .sheet .desc { color: var(--muted); font-size: 13px; margin: 2px 0 10px; }
+  .sheet .field label { display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .sheet .field input { width: 100%; font: inherit; font-size: 16px; padding: 9px 10px; border: 1px solid var(--input-line); border-radius: 8px; background: var(--input); color: var(--ink); }
+  .sheet-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .sheet-btns button { text-align: left; }
+  .picker { background: var(--navy); color: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .picker span { flex: 1; } .picker button { background: var(--gold); color: #1c1b19; font-size: 13px; padding: 7px 12px; }
+  .badge { background: var(--gold); color: #1c1b19; border: 0; }
+  #iLines tr.ln-note td { padding: 0 6px 10px; border-bottom: 1px solid var(--line); }
+  #iLines tr.ln td { border-bottom: 0; }
+  #iLines .l-note { width: 100%; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px dashed var(--input-line); border-radius: 6px; background: var(--input); color: var(--ink); }
+
   /* ---- printed document: brand kit "Document" fragment ---- */
   .doc { display: none; }
   @media print {
@@ -133,6 +149,7 @@
     .doc table.d-lines td { padding: 2.2mm 1.5mm; border-bottom: 0.25pt solid #E3DCCD; vertical-align: top; }
     .doc .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .doc .ref { font-size: 8pt; color: #6E6A63; letter-spacing: .1em; }
+    .doc .d-lnote { font-size: 8.5pt; color: #3A3836; margin-top: 1mm; font-style: italic; }
     .doc .d-totals table.tot { width: 70mm; margin-left: auto; font-size: 10.5pt; } .doc table.tot td { padding: 1.4mm 1.5mm; }
     .doc table.tot tr.grand td { font-weight: 600; border-top: 0.25pt solid #C9A05A; padding-top: 2.5mm; font-size: 12pt; }
     .doc .words { text-align: right; font-size: 9pt; color: #3A3836; font-style: italic; margin-top: 1mm; }
@@ -149,7 +166,7 @@
 <div class="wrap" id="app">
   <header>
     <div><span class="eyebrow">Gifts N' Glam · internal</span><h1>Price Book</h1></div>
-    <div class="hdr-btns"><button class="ghost small" id="btnAll" type="button">All items</button><button class="ghost small" id="btnInv" type="button">Invoices</button><button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button></div>
+    <div class="hdr-btns"><button class="ghost small badge" id="btnDraft" type="button" hidden></button><button class="ghost small" id="btnAll" type="button">All items</button><button class="ghost small" id="btnInv" type="button">Invoices</button><button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button></div>
   </header>
   <hr class="rule">
 
@@ -158,6 +175,7 @@
     <button id="btnFind" type="button">Find</button>
   </div>
   <div class="status" id="status">Loading…</div>
+  <div class="picker" id="picker" hidden><span id="pickerText"></span><button type="button" id="pickerDone">Done</button></div>
 
   <div id="view"></div>
   <div class="list" id="list" hidden></div>
@@ -220,10 +238,11 @@
       <p class="desc">${esc(it.desc || '')}</p>
       <div class="meta">Ref. ${esc(it.ref)} · ${esc(it.project_name || it.project)}${it.tier ? ' · ' + esc(it.tier) : ''}${it.status === 'draft' ? ' · <span class="draft">draft</span>' : ''}</div>
       <div id="pricing">${table}</div>
-      <div class="actions"><button type="button" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button>${p.has ? `<button type="button" class="eye" id="btnEye" aria-pressed="false" title="Show cost, margin and vendor">${EYE} Show cost</button>` : ''}<button type="button" class="ghost" id="btnBack">Back to list</button></div>
+      <div class="actions"><button type="button" id="btnAddDoc">Add to document</button><button type="button" class="ghost" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button>${p.has ? `<button type="button" class="eye" id="btnEye" aria-pressed="false" title="Show cost, margin and vendor">${EYE} Show cost</button>` : ''}<button type="button" class="ghost" id="btnBack">Back to list</button></div>
     </div>`;
     v.appendChild(el); gh.hydratePhotos(el);
     $('#btnEdit').onclick = () => renderEditor(it, pr);
+    $('#btnAddDoc').onclick = () => { if (window.Invoices) window.Invoices.addFromItem(it); };
     $('#btnBack').onclick = () => { current = null; v.innerHTML = ''; showList(); };
     const eye = $('#btnEye');
     if (eye) eye.onclick = () => { revealed = !revealed; el.classList.toggle('revealed', revealed); eye.classList.toggle('on', revealed); eye.setAttribute('aria-pressed', String(revealed)); eye.innerHTML = (revealed ? EYE_OFF : EYE) + (revealed ? ' Hide cost' : ' Show cost'); };
@@ -291,7 +310,7 @@
         const pr = calc(prices[it.ref]);
         const r = document.createElement('div'); r.className = 'row';
         r.innerHTML = `${it.photo ? `<img data-photo="${esc(it.photo)}" alt="">` : '<div class="noimg"></div>'}<div><div class="t">${esc(it.title)}</div><div class="s">${pr.has ? `<span class="priced">${money(pr.sale)}</span>` : 'no prices yet'}${it.status === 'draft' ? ' · draft' : ''}</div></div><div class="ref">${esc(it.ref)}</div>`;
-        r.onclick = () => open(it.ref);
+        r.onclick = () => { if (window.Invoices && window.Invoices.onPick(it)) return; open(it.ref); };
         l.appendChild(r);
       });
     });
@@ -302,13 +321,20 @@
     ref = normRef(ref);
     const it = items.find(i => normRef(i.ref) === ref || normRef(i.ref).replace(/^0+/, '') === ref.replace(/^0+/, ''));
     if (!it) { setStatus('No item with reference ' + ref, true); return; }
+    if (window.Invoices && window.Invoices.onPick(it)) { $('#ref').value = ''; return; }
+    if (window.Invoices) window.Invoices.stash();
     current = it.ref; $('#ref').value = it.ref; $('#list').hidden = true; setStatus('');
     renderItem(it, prices[it.ref]);
   }
 
   $('#btnFind').onclick = () => open($('#ref').value);
   $('#ref').addEventListener('keydown', e => { if (e.key === 'Enter') open($('#ref').value); });
-  $('#btnAll').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); showList(); };
+  $('#btnAll').onclick = () => { if (window.Invoices) window.Invoices.stash(); current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); showList(); };
+  $('#btnDraft').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Invoices) window.Invoices.resume(); };
+  function badge(text) { const b = $('#btnDraft'); b.hidden = !text; b.textContent = text || ''; }
+  let pickerDone = null;
+  function picker(cfg) { const el = $('#picker'); if (!cfg) { el.hidden = true; pickerDone = null; return; } el.hidden = false; $('#pickerText').textContent = cfg.text; pickerDone = cfg.done; }
+  $('#pickerDone').onclick = () => { if (pickerDone) pickerDone(); };
 
 
   // ---------- GitHub storage ----------
@@ -379,7 +405,8 @@
   }
   $('#btnLock').onclick = () => { gh.forget(); askToken(); };
   $('#btnInv').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Invoices) window.Invoices.open(); };
-  window.PB = { gh, items: () => items, prices: () => prices, $, esc, money, num, setStatus, showList, listEl: () => $('#list'), viewEl: () => $('#view') };
+  window.PB = { gh, items: () => items, prices: () => prices, $, esc, money, num, setStatus, showList, listEl: () => $('#list'), viewEl: () => $('#view'), badge, picker };
+  if (window.Invoices) window.Invoices.stash();       // shows the badge for a draft restored from this device
   boot();
 })();
 </script>
