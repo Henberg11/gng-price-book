@@ -122,6 +122,9 @@
   .picker { background: var(--navy); color: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 13px; display: flex; align-items: center; gap: 10px; margin-top: 12px; }
   .picker span { flex: 1; } .picker button { background: var(--gold); color: #1c1b19; font-size: 13px; padding: 7px 12px; }
   .badge { background: var(--gold); color: #1c1b19; border: 0; }
+  .sel-row { grid-template-columns: 56px 1fr auto; cursor: default; }
+  .sel-btns { display: flex; gap: 4px; } .sel-btns button { padding: 6px 8px; font-size: 12px; }
+  .toggle label { display: inline-flex; align-items: center; gap: 6px; }
   #iLines tr.ln-note td { padding: 0 6px 10px; border-bottom: 1px solid var(--line); }
   #iLines tr.ln td { border-bottom: 0; }
   #iLines .l-note { width: 100%; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px dashed var(--input-line); border-radius: 6px; background: var(--input); color: var(--ink); }
@@ -166,7 +169,7 @@
 <div class="wrap" id="app">
   <header>
     <div><span class="eyebrow">Gifts N' Glam · internal</span><h1>Price Book</h1></div>
-    <div class="hdr-btns"><button class="ghost small badge" id="btnDraft" type="button" hidden></button><button class="ghost small" id="btnAll" type="button">All items</button><button class="ghost small" id="btnInv" type="button">Invoices</button><button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button></div>
+    <div class="hdr-btns"><button class="ghost small badge" id="btnDraft" type="button" hidden></button><button class="ghost small" id="btnSel" type="button">Selection</button><button class="ghost small" id="btnAll" type="button">All items</button><button class="ghost small" id="btnInv" type="button">Invoices</button><button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button></div>
   </header>
   <hr class="rule">
 
@@ -182,6 +185,7 @@
 </div>
 <div id="doc" class="doc" hidden></div>
 <script src="invoice.js"></script>
+<script src="selection.js"></script>
 <script>
 (function () {
   const $ = s => document.querySelector(s);
@@ -238,11 +242,12 @@
       <p class="desc">${esc(it.desc || '')}</p>
       <div class="meta">Ref. ${esc(it.ref)} · ${esc(it.project_name || it.project)}${it.tier ? ' · ' + esc(it.tier) : ''}${it.status === 'draft' ? ' · <span class="draft">draft</span>' : ''}</div>
       <div id="pricing">${table}</div>
-      <div class="actions"><button type="button" id="btnAddDoc">Add to document</button><button type="button" class="ghost" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button>${p.has ? `<button type="button" class="eye" id="btnEye" aria-pressed="false" title="Show cost, margin and vendor">${EYE} Show cost</button>` : ''}<button type="button" class="ghost" id="btnBack">Back to list</button></div>
+      <div class="actions"><button type="button" id="btnAddSel" ${it.status === 'final' ? '' : 'disabled title="Drafts cannot be shared"'}>Add to selection</button><button type="button" class="ghost" id="btnAddDoc">Add to document</button><button type="button" class="ghost" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button>${p.has ? `<button type="button" class="eye" id="btnEye" aria-pressed="false" title="Show cost, margin and vendor">${EYE} Show cost</button>` : ''}<button type="button" class="ghost" id="btnBack">Back to list</button></div>
     </div>`;
     v.appendChild(el); gh.hydratePhotos(el);
     $('#btnEdit').onclick = () => renderEditor(it, pr);
     $('#btnAddDoc').onclick = () => { if (window.Invoices) window.Invoices.addFromItem(it); };
+    $('#btnAddSel').onclick = () => { if (window.Selections) window.Selections.addFromItem(it); };
     $('#btnBack').onclick = () => { current = null; v.innerHTML = ''; showList(); };
     const eye = $('#btnEye');
     if (eye) eye.onclick = () => { revealed = !revealed; el.classList.toggle('revealed', revealed); eye.classList.toggle('on', revealed); eye.setAttribute('aria-pressed', String(revealed)); eye.innerHTML = (revealed ? EYE_OFF : EYE) + (revealed ? ' Hide cost' : ' Show cost'); };
@@ -310,7 +315,7 @@
         const pr = calc(prices[it.ref]);
         const r = document.createElement('div'); r.className = 'row';
         r.innerHTML = `${it.photo ? `<img data-photo="${esc(it.photo)}" alt="">` : '<div class="noimg"></div>'}<div><div class="t">${esc(it.title)}</div><div class="s">${pr.has ? `<span class="priced">${money(pr.sale)}</span>` : 'no prices yet'}${it.status === 'draft' ? ' · draft' : ''}</div></div><div class="ref">${esc(it.ref)}</div>`;
-        r.onclick = () => { if (window.Invoices && window.Invoices.onPick(it)) return; open(it.ref); };
+        r.onclick = () => { if (window.Invoices && window.Invoices.onPick(it)) return; if (window.Selections && window.Selections.onPick(it)) return; open(it.ref); };
         l.appendChild(r);
       });
     });
@@ -322,6 +327,7 @@
     const it = items.find(i => normRef(i.ref) === ref || normRef(i.ref).replace(/^0+/, '') === ref.replace(/^0+/, ''));
     if (!it) { setStatus('No item with reference ' + ref, true); return; }
     if (window.Invoices && window.Invoices.onPick(it)) { $('#ref').value = ''; return; }
+    if (window.Selections && window.Selections.onPick(it)) { $('#ref').value = ''; return; }
     if (window.Invoices) window.Invoices.stash();
     current = it.ref; $('#ref').value = it.ref; $('#list').hidden = true; setStatus('');
     renderItem(it, prices[it.ref]);
@@ -332,6 +338,8 @@
   $('#btnAll').onclick = () => { if (window.Invoices) window.Invoices.stash(); current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); showList(); };
   $('#btnDraft').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Invoices) window.Invoices.resume(); };
   function badge(text) { const b = $('#btnDraft'); b.hidden = !text; b.textContent = text || ''; }
+  function selBadge(text) { const b = $('#btnSel'); b.textContent = text || 'Selection'; b.classList.toggle('badge', !!text); }
+  $('#btnSel').onclick = () => { if (window.Invoices) window.Invoices.stash(); current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Selections) window.Selections.open(); };
   let pickerDone = null;
   function picker(cfg) { const el = $('#picker'); if (!cfg) { el.hidden = true; pickerDone = null; return; } el.hidden = false; $('#pickerText').textContent = cfg.text; pickerDone = cfg.done; }
   $('#pickerDone').onclick = () => { if (pickerDone) pickerDone(); };
@@ -341,11 +349,12 @@
   // Data lives in a PRIVATE repo; this page (public, no data) reads and writes it with a fine-grained token
   // the owner pastes once on this device. Every save is a commit -> full price history in the repo.
   const DATA_REPO = window.PRICEBOOK_REPO || 'Henberg11/gng-price-book-data';
+  const API_BASE = window.PRICEBOOK_API || 'https://api.github.com';
   const gh = (() => {
     let token = ''; try { token = localStorage.getItem('gng-gh-token') || ''; } catch (e) {}
     const shas = {}, photoUrls = {};
     const api = async (path, opts = {}) => {
-      const r = await fetch(`https://api.github.com/repos/${DATA_REPO}/contents/${path}`, { method: opts.method || 'GET', body: opts.body, headers: { Authorization: 'Bearer ' + token, Accept: opts.raw ? 'application/vnd.github.raw' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.headers || {}) } });
+      const r = await fetch(`${API_BASE}/repos/${DATA_REPO}/contents/${path}`, { method: opts.method || 'GET', body: opts.body, headers: { Authorization: 'Bearer ' + token, Accept: opts.raw ? 'application/vnd.github.raw' : 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opts.headers || {}) } });
       if (r.status === 401) throw Object.assign(new Error('Token rejected. Enter it again.'), { code: 'auth' });
       if (r.status === 404 && opts.allow404) return null;
       if (!r.ok) throw new Error('GitHub ' + r.status + (r.status === 403 ? ' (rate limit or missing permission)' : r.status === 404 ? ' (repo not found — check the token has access)' : ''));
@@ -368,6 +377,7 @@
       },
       list: async dir => { const r = await api(dir, { allow404: true }); if (!r) return []; const j = await r.json(); return Array.isArray(j) ? j.map(e => e.name) : []; },
       savePrices: (ref, data) => gh.putJson('prices/' + ref + '.json', data, `Prices: ${ref} (${new Date().toISOString().slice(0, 16)})`),
+      bytes: async path => { const r = await api(path, { raw: true, allow404: true }); return r ? new Uint8Array(await r.arrayBuffer()) : null; },
       photo: async path => {
         if (photoUrls[path]) return photoUrls[path];
         const r = await api(path, { raw: true, allow404: true }); if (!r) return null;
@@ -405,8 +415,9 @@
   }
   $('#btnLock').onclick = () => { gh.forget(); askToken(); };
   $('#btnInv').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Invoices) window.Invoices.open(); };
-  window.PB = { gh, items: () => items, prices: () => prices, $, esc, money, num, setStatus, showList, listEl: () => $('#list'), viewEl: () => $('#view'), badge, picker };
+  window.PB = { gh, items: () => items, prices: () => prices, $, esc, money, num, setStatus, showList, listEl: () => $('#list'), viewEl: () => $('#view'), badge, picker, selBadge };
   if (window.Invoices) window.Invoices.stash();       // shows the badge for a draft restored from this device
+  if (window.Selections) window.Selections.badge();
   boot();
 })();
 </script>
