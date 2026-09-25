@@ -127,7 +127,13 @@
   .toggle label { display: inline-flex; align-items: center; gap: 6px; }
   #iLines tr.ln-note td { padding: 0 6px 10px; border-bottom: 1px solid var(--line); }
   #iLines tr.ln td { border-bottom: 0; }
-  #iLines .l-note { width: 100%; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px dashed var(--input-line); border-radius: 6px; background: var(--input); color: var(--ink); }
+  #iLines .l-note { flex: 1; min-width: 0; font: inherit; font-size: 12px; padding: 6px 8px; border: 1px dashed var(--input-line); border-radius: 6px; background: var(--input); color: var(--ink); }
+  #iLines .ln-note td > * { position: sticky; left: 0; }      /* stay on screen while the items table scrolls sideways */
+  #iLines .nrow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  #iLines .vis { flex: none; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 6px 8px; border-radius: 6px; background: var(--gold); color: #1c1b19; border: 0; }
+  #iLines .vis.off { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  #iLines .nx { flex: none; background: none; border: 0; color: var(--muted); font-size: 14px; padding: 4px 6px; }
+  #iLines .nadd { background: none; border: 0; color: var(--muted); font-size: 12px; padding: 0 0 2px; text-decoration: underline; }
 
   /* ---- printed document: brand kit "Document" fragment ---- */
   .doc { display: none; }

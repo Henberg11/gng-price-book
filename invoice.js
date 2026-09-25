@@ -120,7 +120,7 @@
     const ex = (doc.lines || []).find(l => l.ref && l.ref === item.ref);
     let msg;
     if (ex) { ex.qty = (+ex.qty || 0) + qty; msg = `${item.title}: quantity now ${ex.qty} on ${doc.number}`; }
-    else { doc.lines = doc.lines || []; doc.lines.push({ ref: item.ref, name: item.title, hsn: '', qty, unit, note: '' }); msg = `Added ${item.title} to ${doc.number}`; }
+    else { doc.lines = doc.lines || []; doc.lines.push({ ref: item.ref, name: item.title, hsn: '', qty, unit, notes: [] }); msg = `Added ${item.title} to ${doc.number}`; }
     if (unit === '') msg += ' — no sale price yet, fill in the unit price';
     if (item.status === 'draft') msg += ' — catalog page not approved yet';
     return msg;
@@ -161,7 +161,28 @@
   }
   function onPick(item) { if (!picking || !editing) return false; toast(addItem(editing, item, 1)); try { localStorage.setItem(DRAFT_KEY, JSON.stringify(editing)); } catch (e) {} badge(); return true; }
 
+  // A line carries a list of notes: { t: text, h: true = internal (never printed) }.
+  // Older documents hold a single `note` string; read it as one printed note.
+  function noteList(l) {
+    if (Array.isArray(l.notes)) return l.notes.map(n => ({ t: String(n.t || ''), h: !!n.h })).filter(n => n.t);
+    return l.note ? [{ t: String(l.note), h: false }] : [];
+  }
+  const NOTE_PLACEHOLDER = 'Customisation for this line — e.g. client logo on the box lid, printed in gold';
+  function noteRow(n) {
+    const h = n && n.h;
+    return `<div class="nrow"><button type="button" class="vis${h ? ' off' : ''}" data-h="${h ? 1 : 0}" title="${h ? 'Internal: not printed on the document' : 'Printed under the description'}">${h ? 'Internal' : 'Printed'}</button>` +
+      `<input type="text" class="l-note" value="${esc(n ? n.t : '')}" placeholder="${NOTE_PLACEHOLDER}">` +
+      `<button type="button" class="nx" aria-label="Remove note">✕</button></div>`;
+  }
+  function fitNotes() {
+    const tbl = $('#iLines'); if (!tbl) return;
+    const w = (tbl.closest('.tbl') || tbl).clientWidth - 12;
+    if (w > 40) tbl.querySelectorAll('.ln-note td > *').forEach(el => { el.style.width = w + 'px'; });
+  }
+  window.addEventListener('resize', fitNotes);
+
   function lineRow(l) {
+    const notes = noteList(l);
     return `<tr class="ln"><td><input type="text" class="l-ref" value="${esc(l.ref || '')}" placeholder="Ref" inputmode="numeric" style="width:64px"></td>
       <td><input type="text" class="l-name" value="${esc(l.name || '')}" placeholder="Description"></td>
       <td><input type="text" class="l-hsn" value="${esc(l.hsn || '')}" placeholder="HSN" style="width:70px"></td>
@@ -169,7 +190,7 @@
       <td><input type="text" class="n l-unit" inputmode="decimal" value="${l.unit ?? ''}" style="width:90px"></td>
       <td class="n l-total" style="white-space:nowrap">—</td>
       <td><button type="button" class="del" aria-label="Remove">✕</button></td></tr>
-      <tr class="ln-note"><td colspan="7"><input type="text" class="l-note" value="${esc(l.note || '')}" placeholder="Customisation for this line (optional) — e.g. client logo on the box lid, printed in gold"></td></tr>`;
+      <tr class="ln-note"><td colspan="7"><div class="notes">${(notes.length ? notes : [null]).map(noteRow).join('')}</div><button type="button" class="nadd">+ Note</button></td></tr>`;
   }
 
   function renderEditor(inv) {
@@ -192,7 +213,7 @@
       <div class="tbl"><table id="iLines"><thead><tr><th>Ref</th><th>Description</th><th>HSN</th><th class="n">Qty</th><th class="n">Unit ₹</th><th class="n">Total</th><th></th></tr></thead>
       <tbody>${lines.map(lineRow).join('')}</tbody></table></div>
       <div class="actions"><button type="button" class="ghost small" id="iAdd">+ Add line</button><button type="button" class="ghost small" id="iBrowse">Browse Price Book</button></div>
-      <div class="foot">Type a catalog reference in Ref and the name and sale price fill in, or browse the Price Book and tap items. Leave Ref empty for delivery, customisation or any free line. The customisation note prints under the description.</div>
+      <div class="foot">Type a catalog reference in Ref and the name and sale price fill in, or browse the Price Book and tap items. Leave Ref empty for delivery, customisation or any free line. Add as many notes per line as you need: <b>Printed</b> notes appear under the description on the document, <b>Internal</b> notes stay in the Price Book and are never printed.</div>
 
       <h4 class="sec">Totals</h4>
       <div class="field two"><div><label for="dType">Discount</label><select id="dType"><option value="amt" ${inv.discount.type !== 'pct' ? 'selected' : ''}>Amount ₹</option><option value="pct" ${inv.discount.type === 'pct' ? 'selected' : ''}>Percent %</option></select></div><div><label for="dVal">Discount value</label><input id="dVal" type="text" inputmode="decimal" value="${inv.discount.value || ''}"></div></div>
@@ -215,6 +236,18 @@
       v.querySelectorAll('#iLines .del').forEach(b => b.onclick = () => { const tr = b.closest('tr'); const nt = tr.nextElementSibling; tr.remove(); if (nt && nt.classList.contains('ln-note')) nt.remove(); totals(); });
       v.querySelectorAll('#iLines input').forEach(i => i.addEventListener('input', totals));
       v.querySelectorAll('#iLines .l-ref').forEach(i => i.addEventListener('change', () => lookup(i)));
+      v.querySelectorAll('#iLines .nadd').forEach(b => b.onclick = () => { b.previousElementSibling.insertAdjacentHTML('beforeend', noteRow(null)); wire(); fitNotes(); b.previousElementSibling.lastElementChild.querySelector('input').focus(); });
+      v.querySelectorAll('#iLines .nx').forEach(b => b.onclick = () => {
+        const box = b.closest('.notes'); b.closest('.nrow').remove();
+        if (!box.children.length) box.insertAdjacentHTML('beforeend', noteRow(null));     // always leave one empty row to type into
+        wire(); fitNotes(); stash();
+      });
+      v.querySelectorAll('#iLines .vis').forEach(b => b.onclick = () => {
+        const h = b.dataset.h !== '1';
+        b.dataset.h = h ? '1' : '0'; b.textContent = h ? 'Internal' : 'Printed'; b.classList.toggle('off', h);
+        b.title = h ? 'Internal: not printed on the document' : 'Printed under the description';
+        stash();
+      });
     };
     const lookup = inp => {
       const ref = inp.value.trim().replace(/^0+/, ''); if (!ref) return;
@@ -228,7 +261,7 @@
       trs.forEach(tr => { const named = tr.querySelector('.l-name').value.trim(); tr.querySelector('.l-total').textContent = named && c.lines[k] ? INR(c.lines[k++].total) : '—'; });
       $('#iTotals').innerHTML = totalsHtml(c, true);
     };
-    $('#iAdd').onclick = () => { $('#iLines tbody').insertAdjacentHTML('beforeend', lineRow({ qty: 1 })); wire(); const rows = $('#iLines tbody').querySelectorAll('tr.ln'); rows[rows.length - 1].querySelector('input').focus(); };
+    $('#iAdd').onclick = () => { $('#iLines tbody').insertAdjacentHTML('beforeend', lineRow({ qty: 1 })); wire(); fitNotes(); const rows = $('#iLines tbody').querySelectorAll('tr.ln'); rows[rows.length - 1].querySelector('input').focus(); };
     $('#iBrowse').onclick = pick;
     $('#cPick').onchange = e => { const c = clients[e.target.value]; if (!c) return; $('#cName').value = c.name; $('#cGstin').value = c.gstin || ''; $('#cAddr').value = c.address || ''; $('#cState').value = c.state || ''; $('#cPhone').value = c.phone || ''; totals(); };
     ['#dType', '#dVal', '#gRate', '#gMode', '#cState'].forEach(id => $(id).addEventListener('input', totals));
@@ -242,7 +275,7 @@
       renderEditor(inv); msg('Invoice ' + inv.number + ' created from ' + pi.number + '. Save when ready.');
     };
     const msg = (t, err) => { const m = $('#iStatusMsg'); m.textContent = t; m.classList.toggle('err', !!err); };
-    wire(); totals();
+    wire(); totals(); fitNotes();
   }
 
   function read() {
@@ -250,7 +283,7 @@
     if (!document.querySelector('#iLines')) return inv;
     inv.date = $('#iDate').value; inv.status = $('#iStatus').value;
     inv.client = { name: $('#cName').value.trim(), gstin: $('#cGstin').value.trim(), address: $('#cAddr').value.trim(), state: $('#cState').value, phone: $('#cPhone').value.trim() };
-    inv.lines = [...document.querySelectorAll('#iLines tbody tr.ln')].map(tr => { const nt = tr.nextElementSibling; return { ref: tr.querySelector('.l-ref').value.trim(), name: tr.querySelector('.l-name').value.trim(), hsn: tr.querySelector('.l-hsn').value.trim(), qty: S().num(tr.querySelector('.l-qty').value) ?? 1, unit: S().num(tr.querySelector('.l-unit').value) ?? 0, note: nt && nt.classList.contains('ln-note') ? nt.querySelector('.l-note').value.trim() : '' }; }).filter(l => l.name);
+    inv.lines = [...document.querySelectorAll('#iLines tbody tr.ln')].map(tr => { const nt = tr.nextElementSibling; return { ref: tr.querySelector('.l-ref').value.trim(), name: tr.querySelector('.l-name').value.trim(), hsn: tr.querySelector('.l-hsn').value.trim(), qty: S().num(tr.querySelector('.l-qty').value) ?? 1, unit: S().num(tr.querySelector('.l-unit').value) ?? 0, notes: nt && nt.classList.contains('ln-note') ? [...nt.querySelectorAll('.nrow')].map(r => ({ t: r.querySelector('.l-note').value.trim(), h: r.querySelector('.vis').dataset.h === '1' })).filter(n => n.t) : [] }; }).filter(l => l.name);
     inv.discount = { type: $('#dType').value, value: S().num($('#dVal').value) || 0 };
     inv.gst = { mode: $('#gMode').value, rate: business.gstin ? +$('#gRate').value : 0 };
     inv.notes = $('#iNotes').value.trim(); inv.terms = $('#iTerms').value.trim();
@@ -312,7 +345,7 @@
   const br = s => esc(s).split(NL).join('<br>');
   function docHtml(inv) {
     const c = calc(inv); const b = business; const isInv = inv.type === 'invoice';
-    const lines = c.lines.map((l, i) => `<tr><td class="n">${i + 1}</td><td>${esc(l.name)}${l.ref ? ` <span class="ref">Ref. ${esc(l.ref)}</span>` : ''}${l.note ? `<div class="d-lnote">${esc(l.note)}</div>` : ''}</td><td>${esc(l.hsn || '')}</td><td class="n">${l.qty % 1 ? l.qty : l.qty | 0}</td><td class="n">${INR(l.unit)}</td><td class="n">${INR(l.total)}</td></tr>`).join('');
+    const lines = c.lines.map((l, i) => `<tr><td class="n">${i + 1}</td><td>${esc(l.name)}${l.ref ? ` <span class="ref">Ref. ${esc(l.ref)}</span>` : ''}${noteList(l).filter(n => !n.h).map(n => `<div class="d-lnote">${esc(n.t)}</div>`).join('')}</td><td>${esc(l.hsn || '')}</td><td class="n">${l.qty % 1 ? l.qty : l.qty | 0}</td><td class="n">${INR(l.unit)}</td><td class="n">${INR(l.total)}</td></tr>`).join('');
     const bank = b.bank || {}; const hasBank = bank.account || bank.upi;
     return `
       <div class="d-head">
