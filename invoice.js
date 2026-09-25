@@ -117,10 +117,14 @@
   function addItem(doc, item, qty) {
     qty = +qty || 1;
     const price = S().prices()[item.ref]; const unit = price && price.sale != null ? price.sale : '';
+    const carried = customerNotes(price);            // the item's Customer notes print on this line
     const ex = (doc.lines || []).find(l => l.ref && l.ref === item.ref);
     let msg;
     if (ex) { ex.qty = (+ex.qty || 0) + qty; msg = `${item.title}: quantity now ${ex.qty} on ${doc.number}`; }
-    else { doc.lines = doc.lines || []; doc.lines.push({ ref: item.ref, name: item.title, hsn: '', qty, unit, notes: [] }); msg = `Added ${item.title} to ${doc.number}`; }
+    else {
+      doc.lines = doc.lines || []; doc.lines.push({ ref: item.ref, name: item.title, hsn: '', qty, unit, notes: carried });
+      msg = `Added ${item.title} to ${doc.number}` + (carried.length ? ` with ${carried.length} note${carried.length === 1 ? '' : 's'}` : '');
+    }
     if (unit === '') msg += ' — no sale price yet, fill in the unit price';
     if (item.status === 'draft') msg += ' — catalog page not approved yet';
     return msg;
@@ -163,6 +167,9 @@
 
   // A line carries a list of notes: { t: text, h: true = internal (never printed) }.
   // Older documents hold a single `note` string; read it as one printed note.
+  // the Customer notes of a Price Book record, as printed line notes
+  const customerNotes = pr => (Array.isArray(pr && pr.notes) ? pr.notes : []).filter(n => n && n.t && !n.h).map(n => ({ t: String(n.t), h: false }));
+
   function noteList(l) {
     if (Array.isArray(l.notes)) return l.notes.map(n => ({ t: String(n.t || ''), h: !!n.h })).filter(n => n.t);
     return l.note ? [{ t: String(l.note), h: false }] : [];
@@ -253,7 +260,18 @@
       const ref = inp.value.trim().replace(/^0+/, ''); if (!ref) return;
       const it = S().items().find(x => x.ref.replace(/^0+/, '') === ref); if (!it) return;
       const tr = inp.closest('tr'); const pr = S().prices()[it.ref];
-      inp.value = it.ref; tr.querySelector('.l-name').value = it.title; if (pr && pr.sale != null) tr.querySelector('.l-unit').value = pr.sale; totals();
+      inp.value = it.ref; tr.querySelector('.l-name').value = it.title; if (pr && pr.sale != null) tr.querySelector('.l-unit').value = pr.sale;
+      const carried = customerNotes(pr), nt = tr.nextElementSibling;
+      if (carried.length && nt && nt.classList.contains('ln-note')) {
+        const box = nt.querySelector('.notes');
+        const blank = [...box.querySelectorAll('.nrow')].filter(r => !r.querySelector('.l-note').value.trim());
+        const have = [...box.querySelectorAll('.l-note')].map(i => i.value.trim());
+        carried.filter(n => !have.includes(n.t)).forEach(n => box.insertAdjacentHTML('beforeend', noteRow(n)));
+        blank.forEach(r => r.remove());
+        if (!box.children.length) box.insertAdjacentHTML('beforeend', noteRow(null));
+        wire(); fitNotes();
+      }
+      totals();
     };
     const totals = () => {
       const inv = read(); const c = calc(inv);

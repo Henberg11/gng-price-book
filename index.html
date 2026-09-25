@@ -100,6 +100,20 @@
   .eye { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
   .eye.on { color: var(--ink); border-color: var(--gold); }
   .eye svg { width: 18px; height: 18px; }
+  /* ---- notes on a price record: Customer notes travel to documents, Internal ones never leave ---- */
+  .notelist { margin-top: 10px; }
+  .nline { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; padding: 4px 0; }
+  .nline .tag { flex: none; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600; padding: 3px 7px; border-radius: 6px; background: var(--gold); color: #1c1b19; margin-top: 1px; }
+  .nline .tag.off { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .nline .txt { color: var(--ink); }
+  .noteset .nrow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .noteset .nrow input { flex: 1; min-width: 0; font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--input-line); border-radius: 8px; background: var(--input); color: var(--ink); }
+  .noteset .vis { flex: none; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 9px; border-radius: 8px; background: var(--gold); color: #1c1b19; border: 0; }
+  .noteset .vis.off { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .noteset .nx { flex: none; background: none; border: 0; color: var(--muted); font-size: 15px; padding: 4px 6px; }
+  .noteset .nadd { background: none; border: 0; color: var(--muted); font-size: 13px; padding: 0; text-decoration: underline; }
+  .noteset .hint { font-size: 12px; color: var(--muted); margin: 2px 0 8px; }
+
   /* ---- invoices ---- */
   h4.sec { font-size: 10px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold); font-weight: 500; margin: 18px 0 6px; }
   .edit .field select { width: 100%; font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--input-line); border-radius: 8px; background: var(--input); color: var(--ink); }
@@ -202,6 +216,12 @@
   const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1"/><path d="M6.6 6.6C3.6 8.6 2 12 2 12s3.5 7 10 7c1.6 0 3-.4 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
   const num = v => { const n = parseFloat(String(v).replace(/[₹,\s]/g, '')); return isNaN(n) ? null : n; };
   const normRef = s => String(s || '').trim().toUpperCase().replace(/^REF\.?\s*/, '').replace(/^#/, '');
+  // A price record carries a list of notes: { t: text, h: true = internal }. Customer notes (h false)
+  // are the ones that travel onto a proforma or invoice line. A record written before this held a single
+  // `notes` string, which was never printed anywhere - so it loads as Internal.
+  const noteList = pr => Array.isArray(pr && pr.notes) ? pr.notes.map(n => ({ t: String(n.t || ''), h: !!n.h })).filter(n => n.t)
+    : (pr && pr.notes ? [{ t: String(pr.notes), h: true }] : []);
+  const NOTE_HINT = 'e.g. client logo on the box lid, printed in gold';
 
   let items = [], prices = {}, current = null, revealed = false;
 
@@ -216,7 +236,7 @@
     const sale = num(pr.sale);
     const margin = sale == null ? null : sale - cost;
     const pct = (sale && margin != null) ? margin / sale * 100 : null;
-    return { comps, extra, extra_label: pr.extra_label || 'Packaging and box', cost, sale, margin, pct, vendor: pr.vendor || '', notes: pr.notes || '', updated: pr.updated || null, has: comps.length > 0 || sale != null };
+    return { comps, extra, extra_label: pr.extra_label || 'Packaging and box', cost, sale, margin, pct, vendor: pr.vendor || '', notes: noteList(pr), updated: pr.updated || null, has: comps.length > 0 || sale != null };
   }
 
   // ---------- rendering ----------
@@ -240,7 +260,7 @@
           <tr class="total"><td>Total</td><td></td><td class="n">${secret(money(p.cost))}</td><td class="n">${money(p.sale)}</td><td class="n line"></td></tr>
         </tbody></table></div>
       ${p.vendor ? `<div class="foot">Vendor: ${secret(esc(p.vendor))}</div>` : ''}
-      ${p.notes ? `<div class="foot">${esc(p.notes)}</div>` : ''}
+      ${p.notes.length ? `<div class="notelist">${p.notes.map(n => `<div class="nline"><span class="tag${n.h ? ' off' : ''}">${n.h ? 'Internal' : 'Customer'}</span><span class="txt">${n.h ? secret(esc(n.t)) : esc(n.t)}</span></div>`).join('')}</div>` : ''}
       <div class="foot">Prices updated ${p.updated ? esc(p.updated.replace('T', ' ').slice(0, 16)) : '—'}</div>`
       : `<div class="empty">No prices entered yet for this item.</div>`;
     el.innerHTML = `${photo}<div class="body">
@@ -248,7 +268,7 @@
       <p class="desc">${esc(it.desc || '')}</p>
       <div class="meta">Ref. ${esc(it.ref)} · ${esc(it.project_name || it.project)}${it.tier ? ' · ' + esc(it.tier) : ''}${it.status === 'draft' ? ' · <span class="draft">draft</span>' : ''}</div>
       <div id="pricing">${table}</div>
-      <div class="actions"><button type="button" id="btnAddSel" ${it.status === 'final' ? '' : 'disabled title="Drafts cannot be shared"'}>Add to selection</button><button type="button" class="ghost" id="btnAddDoc">Add to document</button><button type="button" class="ghost" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button>${p.has ? `<button type="button" class="eye" id="btnEye" aria-pressed="false" title="Show cost, margin and vendor">${EYE} Show cost</button>` : ''}<button type="button" class="ghost" id="btnBack">Back to list</button></div>
+      <div class="actions"><button type="button" id="btnAddSel" ${it.status === 'final' ? '' : 'disabled title="Drafts cannot be shared"'}>Add to selection</button><button type="button" class="ghost" id="btnAddDoc">Add to document</button><button type="button" class="ghost" id="btnEdit">${p.has ? 'Edit prices' : 'Enter prices'}</button>${p.has ? `<button type="button" class="eye" id="btnEye" aria-pressed="false" title="Show cost, margin, vendor and internal notes">${EYE} Show cost</button>` : ''}<button type="button" class="ghost" id="btnBack">Back to list</button></div>
     </div>`;
     v.appendChild(el); gh.hydratePhotos(el);
     $('#btnEdit').onclick = () => renderEditor(it, pr);
@@ -278,7 +298,10 @@
         <div><label for="edSale">Sale price of the whole item ₹</label><input id="edSale" type="text" inputmode="decimal" value="${p.sale ?? ''}"></div>
         <div><label for="edVendor">Vendor</label><input id="edVendor" type="text" value="${esc(p.vendor)}"></div>
       </div>
-      <div class="field"><label for="edNotes">Notes</label><input id="edNotes" type="text" value="${esc(p.notes)}"></div>
+      <div class="field noteset"><label>Notes</label>
+        <div class="hint">Tap the tag to switch a note between <b>Customer</b> and <b>Internal</b>. Customer notes come along when this item is added to a proforma or invoice; internal notes stay here.</div>
+        <div id="edNotes">${(p.notes.length ? p.notes : [null]).map(noteRowHtml).join('')}</div>
+        <button type="button" class="nadd" id="edNoteAdd">+ Note</button></div>
       <div class="foot" id="edTotals"></div>
       <div class="actions"><button type="button" id="edSave">Save prices</button><button type="button" class="ghost" id="edCancel">Cancel</button></div>`;
     const totals = () => {
@@ -288,6 +311,8 @@
     host.querySelectorAll('input').forEach(i => i.addEventListener('input', totals));
     host.querySelectorAll('.del').forEach(b => b.onclick = () => { b.closest('tr').remove(); totals(); });
     $('#edAdd').onclick = () => { $('#edRows tbody').insertAdjacentHTML('beforeend', rowHtml({ name: '', qty: 1, unit_cost: '', unit_sale: '' })); const tr = $('#edRows tbody').lastElementChild; tr.querySelectorAll('input').forEach(i => i.addEventListener('input', totals)); tr.querySelector('.del').onclick = () => { tr.remove(); totals(); }; tr.querySelector('input').focus(); };
+    wireNotes();
+    $('#edNoteAdd').onclick = () => { $('#edNotes').insertAdjacentHTML('beforeend', noteRowHtml(null)); wireNotes(); $('#edNotes').lastElementChild.querySelector('input').focus(); };
     $('#edCancel').onclick = () => renderItem(it, prices[it.ref]);
     $('#edSave').onclick = async () => {
       const data = readEditor(); data.updated = new Date().toISOString();
@@ -298,6 +323,25 @@
     totals();
     document.querySelector('.actions').scrollIntoView({ block: 'nearest' });
   }
+  function noteRowHtml(n) {
+    const h = n && n.h;
+    return `<div class="nrow"><button type="button" class="vis${h ? ' off' : ''}" data-h="${h ? 1 : 0}" title="${h ? 'Internal: stays in the Price Book' : 'Customer: travels onto proformas and invoices'}">${h ? 'Internal' : 'Customer'}</button>` +
+      `<input type="text" value="${esc(n ? n.t : '')}" placeholder="${NOTE_HINT}"><button type="button" class="nx" aria-label="Remove note">\u2715</button></div>`;
+  }
+  function wireNotes() {
+    const box = $('#edNotes'); if (!box) return;
+    box.querySelectorAll('.vis').forEach(b => b.onclick = () => {
+      const h = b.dataset.h !== '1';
+      b.dataset.h = h ? '1' : '0'; b.textContent = h ? 'Internal' : 'Customer'; b.classList.toggle('off', h);
+      b.title = h ? 'Internal: stays in the Price Book' : 'Customer: travels onto proformas and invoices';
+    });
+    box.querySelectorAll('.nx').forEach(b => b.onclick = () => {
+      b.closest('.nrow').remove();
+      if (!box.children.length) box.insertAdjacentHTML('beforeend', noteRowHtml(null));   // keep one empty row to type into
+      wireNotes();
+    });
+  }
+
   function rowHtml(r) {
     return `<tr><td><input type="text" class="c-name" value="${esc(r.name)}" placeholder="e.g. Stainless-steel flask"></td>
       <td><input type="text" class="n c-qty" inputmode="decimal" value="${r.qty ?? 1}"></td>
@@ -307,7 +351,7 @@
   }
   function readEditor() {
     const comps = [...document.querySelectorAll('#edRows tbody tr')].map(tr => ({ name: tr.querySelector('.c-name').value.trim(), qty: num(tr.querySelector('.c-qty').value) ?? 1, unit_cost: num(tr.querySelector('.c-cost').value) ?? 0, unit_sale: num(tr.querySelector('.c-sale').value) })).filter(c => c.name);
-    return { components: comps, extra_label: $('#edExtraLabel').value.trim() || 'Packaging and box', extra_cost: num($('#edExtra').value) ?? 0, sale: num($('#edSale').value), vendor: $('#edVendor').value.trim(), notes: $('#edNotes').value.trim() };
+    return { components: comps, extra_label: $('#edExtraLabel').value.trim() || 'Packaging and box', extra_cost: num($('#edExtra').value) ?? 0, sale: num($('#edSale').value), vendor: $('#edVendor').value.trim(), notes: [...document.querySelectorAll('#edNotes .nrow')].map(r => ({ t: r.querySelector('input').value.trim(), h: r.querySelector('.vis').dataset.h === '1' })).filter(n => n.t) };
   }
 
   function showList() {
