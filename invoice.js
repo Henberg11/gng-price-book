@@ -44,8 +44,9 @@
     else if (inclusive) { gross = after; taxable = r2(after / (1 + rate / 100)); tax = r2(gross - taxable); }
     else { taxable = after; tax = r2(after * rate / 100); gross = r2(after + tax); }
     const inter = rate && business && inv.client && inv.client.state && business.state && inv.client.state.trim().toLowerCase() !== business.state.trim().toLowerCase();
+    const estimated = !!rate && !(business && business.gstin);        // GST quoted before registration: indicative only
     const total = Math.round(gross); const roundoff = r2(total - gross);
-    return { lines, subtotal, discount, after, rate, inclusive, taxable, tax, inter, half: r2(tax / 2), gross, roundoff, total };
+    return { lines, subtotal, discount, after, rate, inclusive, taxable, tax, inter, half: r2(tax / 2), gross, roundoff, total, estimated };
   }
 
   // ---------- data ----------
@@ -97,7 +98,7 @@
       <h3>Invoices</h3>
       ${editing ? `<div class="actions"><button type="button" id="invResume">Continue ${esc(editing.number)}${editing.client && editing.client.name ? ' · ' + esc(editing.client.name) : ''}</button><button type="button" class="ghost" id="invDrop">Discard draft</button></div>` : ''}
       <div class="actions"><button type="button" id="invNewPI" class="${editing ? 'ghost' : ''}">New proforma</button><button type="button" id="invNewINV" class="${editing ? 'ghost' : ''}">New invoice</button><button type="button" class="ghost" id="invBiz">Business details</button></div>
-      ${business.gstin ? '' : '<div class="foot">No GSTIN on file, so documents are made without GST. Add it under Business details once registered.</div>'}
+      ${business.gstin ? '' : '<div class="foot">No GSTIN on file. A proforma can still quote GST as an estimate; a tax invoice cannot charge it until you add your GSTIN under Business details.</div>'}
       <div class="list" style="margin-top:14px">${rows || '<div class="empty">No documents yet.</div>'}</div>
     </div></div>`;
     if (editing) { $('#invResume').onclick = () => renderEditor(editing); $('#invDrop').onclick = () => { clearDraft(); renderList(); }; }
@@ -224,8 +225,11 @@
 
       <h4 class="sec">Totals</h4>
       <div class="field two"><div><label for="dType">Discount</label><select id="dType"><option value="amt" ${inv.discount.type !== 'pct' ? 'selected' : ''}>Amount ₹</option><option value="pct" ${inv.discount.type === 'pct' ? 'selected' : ''}>Percent %</option></select></div><div><label for="dVal">Discount value</label><input id="dVal" type="text" inputmode="decimal" value="${inv.discount.value || ''}"></div></div>
-      <div class="field two"><div><label for="gRate">GST</label><select id="gRate" ${business.gstin ? '' : 'disabled title="Add your GSTIN under Business details first"'}>${[0, 5, 12, 18, 28].map(r => `<option value="${r}" ${r === +(inv.gst.rate || 0) ? 'selected' : ''}>${r ? r + '%' : 'No GST'}</option>`).join('')}</select></div><div><label for="gMode">Prices are</label><select id="gMode"><option value="exclusive" ${inv.gst.mode !== 'inclusive' ? 'selected' : ''}>Exclusive of GST</option><option value="inclusive" ${inv.gst.mode === 'inclusive' ? 'selected' : ''}>Inclusive of GST</option></select></div></div>
+      <div class="field two"><div><label for="gRate">GST</label><select id="gRate" ${business.gstin || !isInv ? '' : 'disabled title="A tax invoice can only charge GST once your GSTIN is on file (Business details)"'}>${[0, 5, 12, 18, 28].map(r => `<option value="${r}" ${r === +(inv.gst.rate || 0) ? 'selected' : ''}>${r ? r + '%' : 'No GST'}</option>`).join('')}</select></div><div><label for="gMode">Prices are</label><select id="gMode"><option value="exclusive" ${inv.gst.mode !== 'inclusive' ? 'selected' : ''}>Exclusive of GST</option><option value="inclusive" ${inv.gst.mode === 'inclusive' ? 'selected' : ''}>Inclusive of GST</option></select></div></div>
       <div class="totals" id="iTotals"></div>
+      ${business.gstin ? '' : (isInv
+        ? '<div class="foot">No GSTIN on file, so a tax invoice cannot charge GST. Add it under <b>Business details</b>.</div>'
+        : '<div class="foot">No GSTIN on file yet, so GST on a proforma prints as an <b>estimate</b> — the quotation shows the client what the landed cost will be. The tax invoice charges it once your GSTIN is saved under <b>Business details</b>.</div>')}
 
       <div class="field"><label for="iNotes">Note to client (optional)</label><textarea id="iNotes" rows="2">${esc(inv.notes || '')}</textarea></div>
       <div class="field"><label for="iTerms">Terms</label><textarea id="iTerms" rows="3">${esc(inv.terms || '')}</textarea></div>
@@ -303,7 +307,7 @@
     inv.client = { name: $('#cName').value.trim(), gstin: $('#cGstin').value.trim(), address: $('#cAddr').value.trim(), state: $('#cState').value, phone: $('#cPhone').value.trim() };
     inv.lines = [...document.querySelectorAll('#iLines tbody tr.ln')].map(tr => { const nt = tr.nextElementSibling; return { ref: tr.querySelector('.l-ref').value.trim(), name: tr.querySelector('.l-name').value.trim(), hsn: tr.querySelector('.l-hsn').value.trim(), qty: S().num(tr.querySelector('.l-qty').value) ?? 1, unit: S().num(tr.querySelector('.l-unit').value) ?? 0, notes: nt && nt.classList.contains('ln-note') ? [...nt.querySelectorAll('.nrow')].map(r => ({ t: r.querySelector('.l-note').value.trim(), h: r.querySelector('.vis').dataset.h === '1' })).filter(n => n.t) : [] }; }).filter(l => l.name);
     inv.discount = { type: $('#dType').value, value: S().num($('#dVal').value) || 0 };
-    inv.gst = { mode: $('#gMode').value, rate: business.gstin ? +$('#gRate').value : 0 };
+    inv.gst = { mode: $('#gMode').value, rate: (business.gstin || inv.type !== 'invoice') ? +$('#gRate').value : 0 };
     inv.notes = $('#iNotes').value.trim(); inv.terms = $('#iTerms').value.trim();
     return inv;
   }
@@ -331,7 +335,8 @@
       if (c.inter) rows.push([`IGST ${c.rate}%`, c.tax]); else { rows.push([`CGST ${c.rate / 2}%`, c.half]); rows.push([`SGST ${c.rate / 2}%`, c.half]); }
     }
     if (c.roundoff) rows.push(['Round off', c.roundoff]);
-    return `<table class="tot"><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td class="n">${INR(v)}</td></tr>`).join('')}<tr class="grand"><td>Total</td><td class="n">${INR(c.total)}</td></tr></tbody></table>${compact ? '' : `<div class="words">${esc(inWords(c.total))}</div>`}`;
+    const est = c.estimated ? `<div class="words">GST shown is an estimate</div>` : '';
+    return `<table class="tot"><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td class="n">${INR(v)}</td></tr>`).join('')}<tr class="grand"><td>Total</td><td class="n">${INR(c.total)}</td></tr></tbody></table>${est}${compact ? '' : `<div class="words">${esc(inWords(c.total))}</div>`}`;
   }
 
   // ---------- business details ----------
@@ -384,7 +389,7 @@
       </div>
       <table class="d-lines"><thead><tr><th class="n">#</th><th>Description</th><th>HSN</th><th class="n">Qty</th><th class="n">Unit</th><th class="n">Amount</th></tr></thead><tbody>${lines}</tbody></table>
       <div class="d-totals">${totalsHtml(c, false)}</div>
-      ${c.rate ? `<div class="d-note">Prices ${c.inclusive ? 'inclusive' : 'exclusive'} of GST. Place of supply: ${esc(inv.client.state || '—')}.</div>` : ''}
+      ${c.rate ? `<div class="d-note">Prices ${c.inclusive ? 'inclusive' : 'exclusive'} of GST. Place of supply: ${esc(inv.client.state || '—')}.${c.estimated ? ` ${esc(b.name)} is not registered under GST at present; the GST shown is an estimate and is not charged on this quotation. It will be levied on the tax invoice once registration is in place.` : ''}</div>` : ''}
       ${inv.notes ? `<div class="d-note">${esc(inv.notes)}</div>` : ''}
       ${!isInv && b.proforma_note ? `<div class="d-note">${esc(b.proforma_note)}</div>` : ''}
       ${hasBank ? `<div class="d-block"><div class="d-lab">Payment</div>${bank.name ? `<div>${esc(bank.name)}</div>` : ''}${bank.account ? `<div>Account ${esc(bank.account)}${bank.ifsc ? ' · IFSC ' + esc(bank.ifsc) : ''}</div>` : ''}${bank.upi ? `<div>UPI ${esc(bank.upi)}</div>` : ''}</div>` : ''}
