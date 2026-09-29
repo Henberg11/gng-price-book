@@ -152,10 +152,18 @@
   /* ---- printed document: brand kit "Document" fragment ---- */
   .doc { display: none; }
   @media print {
-    @page { size: A4; margin: 14mm 18mm; }
-    body { background: #fff !important; color: #141414 !important; }
+    /* A browser draws its own header (page title, date) and footer (URL, page number) inside the
+       @page margin, and there is no CSS to switch them off - leaving no margin is what keeps them
+       out of the PDF. The document's own margins are the .d-sheet spacers below, which are a
+       repeating table head and foot, so they come back on every page of a long invoice. */
+    @page { size: A4; margin: 0; }
+    body { background: #fff !important; color: #141414 !important; margin: 0 !important; }
     .wrap { display: none !important; }
     .doc { display: block !important; font-family: 'Montserrat', 'Jost', sans-serif; font-size: 10pt; line-height: 1.45; color: #141414; }
+    .doc table.d-sheet { width: 100%; border-collapse: collapse; }
+    .doc table.d-sheet > thead > tr > td, .doc table.d-sheet > tfoot > tr > td { padding: 0; border: 0; }
+    .doc .d-pad { height: 14mm; }
+    .doc td.d-body { padding: 0 18mm; border: 0; vertical-align: top; }
     .doc .d-head { text-align: center; }
     .doc .d-logo { height: 13mm; width: auto; display: inline-block; }
     .doc .d-brand { font-family: 'Bodoni Moda', 'Playfair Display', serif; font-weight: 500; font-size: 14pt; letter-spacing: .29em; text-transform: uppercase; margin-top: 3mm; }
@@ -178,6 +186,7 @@
     .doc .words { text-align: right; font-size: 9pt; color: #3A3836; font-style: italic; margin-top: 1mm; }
     .doc .d-note { margin-top: 5mm; font-size: 9.5pt; color: #3A3836; }
     .doc .d-block { margin-top: 4mm; font-size: 9.5pt; }
+    .doc .d-pay { display: grid; grid-template-columns: auto auto; gap: 0 8mm; justify-content: start; }
     .doc .d-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; align-items: end; margin-top: 6mm; page-break-inside: avoid; }
     .doc .d-sign { text-align: right; font-size: 9.5pt; } .doc .d-sign .d-rule { margin: 0 0 2mm auto; }
     .doc .d-sign .space { height: 12mm; } .doc .d-sign .d-lab { margin-top: 1mm; }

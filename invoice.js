@@ -371,7 +371,10 @@
     const c = calc(inv); const b = business; const isInv = inv.type === 'invoice';
     const lines = c.lines.map((l, i) => `<tr><td class="n">${i + 1}</td><td>${esc(l.name)}${l.ref ? ` <span class="ref">Ref. ${esc(l.ref)}</span>` : ''}${noteList(l).filter(n => !n.h).map(n => `<div class="d-lnote">${esc(n.t)}</div>`).join('')}</td><td>${esc(l.hsn || '')}</td><td class="n">${l.qty % 1 ? l.qty : l.qty | 0}</td><td class="n">${INR(l.unit)}</td><td class="n">${INR(l.total)}</td></tr>`).join('');
     const bank = b.bank || {}; const hasBank = bank.account || bank.upi;
-    return `
+    return `<table class="d-sheet">
+      <thead><tr><td><div class="d-pad"></div></td></tr></thead>
+      <tfoot><tr><td><div class="d-pad"></div></td></tr></tfoot>
+      <tbody><tr><td class="d-body">
       <div class="d-head">
         <img src="${logoUrl}" alt="" class="d-logo">
         <div class="d-brand">${esc(b.name)}</div>
@@ -393,11 +396,12 @@
       ${c.rate ? `<div class="d-note">Prices ${c.inclusive ? 'inclusive' : 'exclusive'} of GST. Place of supply: ${esc(inv.client.state || '—')}.${c.estimated ? ` ${esc(b.name)} is not registered under GST at present; the GST shown is an estimate and is not charged on this quotation. It will be levied on the tax invoice once registration is in place.` : ''}</div>` : ''}
       ${inv.notes ? `<div class="d-note">${esc(inv.notes)}</div>` : ''}
       ${!isInv && b.proforma_note ? `<div class="d-note">${esc(b.proforma_note)}</div>` : ''}
-      ${hasBank ? `<div class="d-block"><div class="d-lab">Payment</div>${bank.holder ? `<div>${esc(bank.holder)}</div>` : ''}${bank.name ? `<div>${esc(bank.name)}</div>` : ''}${bank.account ? `<div>Account ${esc(bank.account)}${bank.type ? ' (' + esc(bank.type) + ')' : ''}</div>` : ''}${bank.ifsc ? `<div>IFSC ${esc(bank.ifsc)}</div>` : ''}${bank.upi ? `<div>UPI ${esc(bank.upi)}</div>` : ''}</div>` : ''}
+      ${hasBank ? `<div class="d-block"><div class="d-lab">Payment</div><div class="d-pay"><div>${bank.holder ? `<div>${esc(bank.holder)}</div>` : ''}${bank.name ? `<div>${esc(bank.name)}</div>` : ''}</div><div>${bank.account ? `<div>Account ${esc(bank.account)}${bank.type ? ' (' + esc(bank.type) + ')' : ''}</div>` : ''}${bank.ifsc ? `<div>IFSC ${esc(bank.ifsc)}</div>` : ''}${bank.upi ? `<div>UPI ${esc(bank.upi)}</div>` : ''}</div></div></div>` : ''}
       <div class="d-foot">
         <div>${inv.terms ? `<div class="d-lab">Terms</div><div>${br(inv.terms)}</div>` : ''}</div>
         <div class="d-sign"><div class="space"></div><hr class="d-rule"><div>For ${esc(b.name)}</div><div class="d-lab">Authorised signatory</div></div>
-      </div>`;
+      </div>
+      </td></tr></tbody></table>`;
   }
   let logoUrl = '';
   async function printDoc(inv) {
