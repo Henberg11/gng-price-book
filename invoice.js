@@ -349,6 +349,7 @@
       <div class="field two"><div><label for="bState">State</label><select id="bState">${STATES.map(s => `<option ${s === b.state ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div><label for="bPhone">Phone</label><input id="bPhone" type="text" value="${esc(b.phone || '')}"></div></div>
       <div class="field"><label for="bEmail">Email</label><input id="bEmail" type="text" value="${esc(b.email || '')}"></div>
       <h4 class="sec">Bank (shown on proformas)</h4>
+      <div class="field two"><div><label for="kHolder">Account holder</label><input id="kHolder" type="text" value="${esc(bank.holder || '')}" placeholder="as printed on the passbook"></div><div><label for="kType">Account type</label><input id="kType" type="text" value="${esc(bank.type || '')}" placeholder="e.g. Savings"></div></div>
       <div class="field two"><div><label for="kName">Bank and branch</label><input id="kName" type="text" value="${esc(bank.name || '')}"></div><div><label for="kAcc">Account number</label><input id="kAcc" type="text" value="${esc(bank.account || '')}"></div></div>
       <div class="field two"><div><label for="kIfsc">IFSC</label><input id="kIfsc" type="text" value="${esc(bank.ifsc || '')}"></div><div><label for="kUpi">UPI ID</label><input id="kUpi" type="text" value="${esc(bank.upi || '')}"></div></div>
       <div class="field"><label for="bTerms">Default terms</label><textarea id="bTerms" rows="3">${esc(b.terms || '')}</textarea></div>
@@ -357,7 +358,7 @@
     $('#bBack').onclick = renderList;
     $('#bSave').onclick = async () => {
       business = { name: $('#bName').value.trim() || "Gifts N' Glam", tagline: $('#bTag').value.trim(), gstin: $('#bGstin').value.trim().toUpperCase(), address: $('#bAddr').value.trim(), state: $('#bState').value, phone: $('#bPhone').value.trim(), email: $('#bEmail').value.trim(),
-        bank: { name: $('#kName').value.trim(), account: $('#kAcc').value.trim(), ifsc: $('#kIfsc').value.trim().toUpperCase(), upi: $('#kUpi').value.trim() }, terms: $('#bTerms').value.trim(), proforma_note: $('#bPI').value.trim() };
+        bank: { holder: $('#kHolder').value.trim(), type: $('#kType').value.trim(), name: $('#kName').value.trim(), account: $('#kAcc').value.trim(), ifsc: $('#kIfsc').value.trim().toUpperCase(), upi: $('#kUpi').value.trim() }, terms: $('#bTerms').value.trim(), proforma_note: $('#bPI').value.trim() };
       $('#bSave').disabled = true;
       try { await S().gh.putJson('settings/business.json', business, 'Business details'); $('#bMsg').textContent = 'Saved'; } catch (e) { $('#bMsg').textContent = 'Could not save: ' + e.message; }
       $('#bSave').disabled = false;
@@ -392,7 +393,7 @@
       ${c.rate ? `<div class="d-note">Prices ${c.inclusive ? 'inclusive' : 'exclusive'} of GST. Place of supply: ${esc(inv.client.state || '—')}.${c.estimated ? ` ${esc(b.name)} is not registered under GST at present; the GST shown is an estimate and is not charged on this quotation. It will be levied on the tax invoice once registration is in place.` : ''}</div>` : ''}
       ${inv.notes ? `<div class="d-note">${esc(inv.notes)}</div>` : ''}
       ${!isInv && b.proforma_note ? `<div class="d-note">${esc(b.proforma_note)}</div>` : ''}
-      ${hasBank ? `<div class="d-block"><div class="d-lab">Payment</div>${bank.name ? `<div>${esc(bank.name)}</div>` : ''}${bank.account ? `<div>Account ${esc(bank.account)}${bank.ifsc ? ' · IFSC ' + esc(bank.ifsc) : ''}</div>` : ''}${bank.upi ? `<div>UPI ${esc(bank.upi)}</div>` : ''}</div>` : ''}
+      ${hasBank ? `<div class="d-block"><div class="d-lab">Payment</div>${bank.holder ? `<div>${esc(bank.holder)}</div>` : ''}${bank.name ? `<div>${esc(bank.name)}</div>` : ''}${bank.account ? `<div>Account ${esc(bank.account)}${bank.type ? ' (' + esc(bank.type) + ')' : ''}</div>` : ''}${bank.ifsc ? `<div>IFSC ${esc(bank.ifsc)}</div>` : ''}${bank.upi ? `<div>UPI ${esc(bank.upi)}</div>` : ''}</div>` : ''}
       <div class="d-foot">
         <div>${inv.terms ? `<div class="d-lab">Terms</div><div>${br(inv.terms)}</div>` : ''}</div>
         <div class="d-sign"><div class="space"></div><hr class="d-rule"><div>For ${esc(b.name)}</div><div class="d-lab">Authorised signatory</div></div>
