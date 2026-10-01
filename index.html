@@ -100,6 +100,12 @@
   .eye { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
   .eye.on { color: var(--ink); border-color: var(--gold); }
   .eye svg { width: 18px; height: 18px; }
+  /* ---- vendors: who supplies this item, the quantity they start at, and their price ---- */
+  .vhead { font-size: 10px; letter-spacing: .28em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+  .vtag { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 5px; padding: 1px 5px; margin-left: 6px; white-space: nowrap; }
+  #edVendors input { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--input-line); border-radius: 8px; background: var(--input); color: var(--ink); width: 100%; }
+  #edVendors .n input { text-align: right; }
+
   /* ---- notes on a price record: Customer notes travel to documents, Internal ones never leave ---- */
   .notelist { margin-top: 10px; }
   .nline { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; padding: 4px 0; }
@@ -231,6 +237,11 @@
   const noteList = pr => Array.isArray(pr && pr.notes) ? pr.notes.map(n => ({ t: String(n.t || ''), h: !!n.h })).filter(n => n.t)
     : (pr && pr.notes ? [{ t: String(pr.notes), h: true }] : []);
   const NOTE_HINT = 'e.g. client logo on the box lid, printed in gold';
+  // An item can be bought from several suppliers: { name, moq (minimum order quantity), price }.
+  // A record written before this held a single `vendor` string, which becomes one row with no figures.
+  const vendorList = pr => Array.isArray(pr && pr.vendors)
+    ? pr.vendors.map(v => ({ name: String(v.name || '').trim(), moq: num(v.moq), price: num(v.price) })).filter(v => v.name || v.moq != null || v.price != null)
+    : (pr && pr.vendor ? [{ name: String(pr.vendor), moq: null, price: null }] : []);
 
   let items = [], prices = {}, current = null, revealed = false;
 
@@ -245,7 +256,7 @@
     const sale = num(pr.sale);
     const margin = sale == null ? null : sale - cost;
     const pct = (sale && margin != null) ? margin / sale * 100 : null;
-    return { comps, extra, extra_label: pr.extra_label || 'Packaging and box', cost, sale, margin, pct, vendor: pr.vendor || '', notes: noteList(pr), updated: pr.updated || null, has: comps.length > 0 || sale != null };
+    return { comps, extra, extra_label: pr.extra_label || 'Packaging and box', cost, sale, margin, pct, vendors: vendorList(pr), notes: noteList(pr), updated: pr.updated || null, has: comps.length > 0 || sale != null };
   }
 
   // ---------- rendering ----------
@@ -268,7 +279,14 @@
           ${p.extra ? `<tr><td>${esc(p.extra_label)}</td><td class="n">1</td><td class="n">${secret(money(p.extra))}</td><td class="n">—</td><td class="n line">${secret(money(p.extra))}</td></tr>` : ''}
           <tr class="total"><td>Total</td><td></td><td class="n">${secret(money(p.cost))}</td><td class="n">${money(p.sale)}</td><td class="n line"></td></tr>
         </tbody></table></div>
-      ${p.vendor ? `<div class="foot">Vendor: ${secret(esc(p.vendor))}</div>` : ''}
+      ${p.vendors.length ? (() => {
+        const priced = p.vendors.filter(v => v.price != null);
+        const low = priced.length ? Math.min(...priced.map(v => v.price)) : null;
+        return `<div class="vhead">Vendors</div><div class="tbl"><table>
+          <thead><tr><th>Vendor</th><th class="n">MOQ</th><th class="n">Price</th></tr></thead>
+          <tbody>${p.vendors.map(v => `<tr><td>${secret(esc(v.name))}${v.price != null && v.price === low && priced.length > 1 ? '<span class="vtag">lowest</span>' : ''}</td><td class="n">${v.moq != null ? v.moq.toLocaleString('en-IN') : '—'}</td><td class="n">${secret(money(v.price))}</td></tr>`).join('')}</tbody>
+        </table></div>`;
+      })() : ''}
       ${p.notes.length ? `<div class="notelist">${p.notes.map(n => `<div class="nline"><span class="tag${n.h ? ' off' : ''}">${n.h ? 'Internal' : 'Customer'}</span><span class="txt">${n.h ? secret(esc(n.t)) : esc(n.t)}</span></div>`).join('')}</div>` : ''}
       <div class="foot">Prices updated ${p.updated ? esc(p.updated.replace('T', ' ').slice(0, 16)) : '—'}</div>`
       : `<div class="empty">No prices entered yet for this item.</div>`;
@@ -303,9 +321,16 @@
         <div><label for="edExtraLabel">Extra cost label</label><input id="edExtraLabel" type="text" value="${esc(p.extra_label)}"></div>
         <div><label for="edExtra">Extra cost ₹ (box, packaging, labour)</label><input id="edExtra" type="text" inputmode="decimal" value="${p.extra || ''}"></div>
       </div>
-      <div class="field two">
-        <div><label for="edSale">Sale price of the whole item ₹</label><input id="edSale" type="text" inputmode="decimal" value="${p.sale ?? ''}"></div>
-        <div><label for="edVendor">Vendor</label><input id="edVendor" type="text" value="${esc(p.vendor)}"></div>
+      <div class="field">
+        <label for="edSale">Sale price of the whole item ₹</label><input id="edSale" type="text" inputmode="decimal" value="${p.sale ?? ''}">
+      </div>
+      <div class="field"><label>Vendors</label>
+        <div class="hint">One row per supplier: who they are, the quantity they start at, and their price at that quantity. Vendors and their prices stay in the Price Book - they never reach a customer document.</div>
+        <div class="tbl"><table id="edVendors">
+          <thead><tr><th>Vendor</th><th class="n">MOQ</th><th class="n">Price ₹</th><th></th></tr></thead>
+          <tbody>${(p.vendors.length ? p.vendors : [{ name: '', moq: null, price: null }]).map(vendorRowHtml).join('')}</tbody>
+        </table></div>
+        <div class="actions"><button type="button" class="ghost small" id="edVendorAdd">+ Add vendor</button></div>
       </div>
       <div class="field noteset"><label>Notes</label>
         <div class="hint">Tap the tag to switch a note between <b>Customer</b> and <b>Internal</b>. Customer notes come along when this item is added to a proforma or invoice; internal notes stay here.</div>
@@ -320,6 +345,20 @@
     host.querySelectorAll('input').forEach(i => i.addEventListener('input', totals));
     host.querySelectorAll('.del').forEach(b => b.onclick = () => { b.closest('tr').remove(); totals(); });
     $('#edAdd').onclick = () => { $('#edRows tbody').insertAdjacentHTML('beforeend', rowHtml({ name: '', qty: 1, unit_cost: '', unit_sale: '' })); const tr = $('#edRows tbody').lastElementChild; tr.querySelectorAll('input').forEach(i => i.addEventListener('input', totals)); tr.querySelector('.del').onclick = () => { tr.remove(); totals(); }; tr.querySelector('input').focus(); };
+    const wireVendor = tr => {
+      tr.querySelectorAll('input').forEach(i => i.addEventListener('input', totals));
+      tr.querySelector('.del').onclick = () => {
+        const body = tr.closest('tbody'); tr.remove();
+        if (!body.children.length) body.insertAdjacentHTML('beforeend', vendorRowHtml({ name: '', moq: null, price: null }));   // keep one row to type into
+        wireVendor(body.lastElementChild); totals();
+      };
+    };
+    $('#edVendors tbody').querySelectorAll('tr').forEach(wireVendor);
+    $('#edVendorAdd').onclick = () => {
+      const body = $('#edVendors tbody');
+      body.insertAdjacentHTML('beforeend', vendorRowHtml({ name: '', moq: null, price: null }));
+      wireVendor(body.lastElementChild); body.lastElementChild.querySelector('input').focus();
+    };
     wireNotes();
     $('#edNoteAdd').onclick = () => { $('#edNotes').insertAdjacentHTML('beforeend', noteRowHtml(null)); wireNotes(); $('#edNotes').lastElementChild.querySelector('input').focus(); };
     $('#edCancel').onclick = () => renderItem(it, prices[it.ref]);
@@ -351,6 +390,13 @@
     });
   }
 
+  function vendorRowHtml(v) {
+    return `<tr><td><input type="text" class="v-name" value="${esc(v.name || '')}" placeholder="e.g. Shah Enterprise, Rakhial"></td>
+      <td class="n"><input type="text" class="v-moq" inputmode="numeric" value="${v.moq ?? ''}" placeholder="50"></td>
+      <td class="n"><input type="text" class="v-price" inputmode="decimal" value="${v.price ?? ''}" placeholder="320"></td>
+      <td><button type="button" class="del" aria-label="Remove vendor">\u2715</button></td></tr>`;
+  }
+
   function rowHtml(r) {
     return `<tr><td><input type="text" class="c-name" value="${esc(r.name)}" placeholder="e.g. Stainless-steel flask"></td>
       <td><input type="text" class="n c-qty" inputmode="decimal" value="${r.qty ?? 1}"></td>
@@ -360,7 +406,7 @@
   }
   function readEditor() {
     const comps = [...document.querySelectorAll('#edRows tbody tr')].map(tr => ({ name: tr.querySelector('.c-name').value.trim(), qty: num(tr.querySelector('.c-qty').value) ?? 1, unit_cost: num(tr.querySelector('.c-cost').value) ?? 0, unit_sale: num(tr.querySelector('.c-sale').value) })).filter(c => c.name);
-    return { components: comps, extra_label: $('#edExtraLabel').value.trim() || 'Packaging and box', extra_cost: num($('#edExtra').value) ?? 0, sale: num($('#edSale').value), vendor: $('#edVendor').value.trim(), notes: [...document.querySelectorAll('#edNotes .nrow')].map(r => ({ t: r.querySelector('input').value.trim(), h: r.querySelector('.vis').dataset.h === '1' })).filter(n => n.t) };
+    return { components: comps, extra_label: $('#edExtraLabel').value.trim() || 'Packaging and box', extra_cost: num($('#edExtra').value) ?? 0, sale: num($('#edSale').value), vendors: [...document.querySelectorAll('#edVendors tbody tr')].map(tr => ({ name: tr.querySelector('.v-name').value.trim(), moq: num(tr.querySelector('.v-moq').value), price: num(tr.querySelector('.v-price').value) })).filter(v => v.name || v.moq != null || v.price != null), notes: [...document.querySelectorAll('#edNotes .nrow')].map(r => ({ t: r.querySelector('input').value.trim(), h: r.querySelector('.vis').dataset.h === '1' })).filter(n => n.t) };
   }
 
   function showList() {
