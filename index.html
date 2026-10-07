@@ -112,6 +112,20 @@
   .eye { background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
   .eye.on { color: var(--ink); border-color: var(--gold); }
   .eye svg { width: 18px; height: 18px; }
+  /* ---- tasks: what is waiting, on its own or against a client ---- */
+  h2.tkh { font-size: 10px; letter-spacing: .32em; text-transform: uppercase; color: var(--muted); font-weight: 500; margin: 18px 0 6px; }
+  .task { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  .task .tick { flex: none; width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 1px solid var(--input-line); background: transparent; color: transparent; font-size: 14px; line-height: 1; }
+  .task .tick.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .task .tx { min-width: 0; }
+  .task .t { font-size: 14px; color: var(--ink); }
+  .task .s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .task .s .late { color: var(--warn); }
+  .task .s .who { color: var(--gold); }
+  .task.off .t { text-decoration: line-through; color: var(--muted); }
+  .task .rem { flex: none; background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 11px; padding: 5px 9px; }
+  .task .del { flex: none; background: none; border: 0; color: var(--muted); font-size: 14px; padding: 4px 6px; }
+
   /* ---- vendors: who supplies this item, the quantity they start at, and their price ---- */
   .vhead { font-size: 10px; letter-spacing: .28em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
   .vtag { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 5px; padding: 1px 5px; margin-left: 6px; white-space: nowrap; }
@@ -216,7 +230,7 @@
 <div class="wrap" id="app">
   <header>
     <div><span class="eyebrow">Gifts N' Glam · internal</span><h1>Price Book</h1></div>
-    <div class="hdr-btns"><button class="ghost small badge" id="btnDraft" type="button" hidden></button><button class="ghost small" id="btnSel" type="button">Selection</button><button class="ghost small" id="btnAll" type="button">All items</button><button class="ghost small" id="btnInv" type="button">Invoices</button><button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button></div>
+    <div class="hdr-btns"><button class="ghost small badge" id="btnDraft" type="button" hidden></button><button class="ghost small" id="btnSel" type="button">Selection</button><button class="ghost small" id="btnAll" type="button">All items</button><button class="ghost small" id="btnInv" type="button">Invoices</button><button class="ghost small" id="btnTask" type="button">Tasks</button><button class="ghost small" id="btnLock" type="button" title="Forget the token on this device">Lock</button></div>
   </header>
   <hr class="rule">
 
@@ -233,6 +247,7 @@
 <div id="doc" class="doc" hidden></div>
 <script src="invoice.js"></script>
 <script src="selection.js"></script>
+<script src="tasks.js"></script>
 <script>
 (function () {
   const $ = s => document.querySelector(s);
@@ -472,7 +487,9 @@
   $('#btnDraft').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Invoices) window.Invoices.resume(); };
   function badge(text) { const b = $('#btnDraft'); b.hidden = !text; b.textContent = text || ''; }
   function selBadge(text) { const b = $('#btnSel'); b.textContent = text || 'Selection'; b.classList.toggle('badge', !!text); }
+  function taskBadge(text) { const b = $('#btnTask'); b.textContent = text || 'Tasks'; b.classList.toggle('badge', !!text); }
   $('#btnSel').onclick = () => { if (window.Invoices) window.Invoices.stash(); current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Selections) window.Selections.open(); };
+  $('#btnTask').onclick = () => { if (window.Invoices) window.Invoices.stash(); current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Tasks) window.Tasks.open(); };
   let pickerDone = null;
   function picker(cfg) { const el = $('#picker'); if (!cfg) { el.hidden = true; pickerDone = null; return; } el.hidden = false; $('#pickerText').textContent = cfg.text; pickerDone = cfg.done; }
   $('#pickerDone').onclick = () => { if (pickerDone) pickerDone(); };
@@ -507,6 +524,12 @@
         if (shas[path]) body.sha = shas[path];
         const r = await api(path, { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
         const j = await r.json(); shas[path] = j.content.sha;
+      },
+      del: async (path, message) => {
+        if (!(path in shas)) await readJson(path);
+        if (!shas[path]) return;
+        await api(path, { method: 'DELETE', body: JSON.stringify({ message: message || `Delete ${path}`, sha: shas[path] }), headers: { 'Content-Type': 'application/json' } });
+        delete shas[path];
       },
       list: async dir => { const r = await api(dir, { allow404: true }); if (!r) return []; const j = await r.json(); return Array.isArray(j) ? j.map(e => e.name) : []; },
       savePrices: (ref, data) => gh.putJson('prices/' + ref + '.json', data, `Prices: ${ref} (${new Date().toISOString().slice(0, 16)})`),
@@ -548,9 +571,10 @@
   }
   $('#btnLock').onclick = () => { gh.forget(); askToken(); };
   $('#btnInv').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Invoices) window.Invoices.open(); };
-  window.PB = { gh, items: () => items, prices: () => prices, $, esc, money, num, setStatus, showList, listEl: () => $('#list'), viewEl: () => $('#view'), badge, picker, selBadge };
+  window.PB = { gh, items: () => items, prices: () => prices, $, esc, money, num, setStatus, showList, listEl: () => $('#list'), viewEl: () => $('#view'), badge, picker, selBadge, taskBadge };
   if (window.Invoices) window.Invoices.stash();       // shows the badge for a draft restored from this device
   if (window.Selections) window.Selections.badge();
+  if (window.Tasks && gh.hasToken()) window.Tasks.load().catch(() => {});     // so the Tasks button already counts what is due
   boot();
 })();
 </script>
