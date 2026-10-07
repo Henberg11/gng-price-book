@@ -219,6 +219,10 @@
     .doc .d-note { margin-top: 5mm; font-size: 9.5pt; color: #3A3836; }
     .doc .d-block { margin-top: 4mm; font-size: 9.5pt; }
     .doc .d-pay { display: grid; grid-template-columns: auto auto; gap: 0 8mm; justify-content: start; }
+    /* conditions of sale: small, two columns, under everything the client reads first */
+    .doc .d-cond { margin-top: 6mm; page-break-inside: avoid; }
+    .doc .d-cond ol { columns: 2; column-gap: 8mm; margin: 1.5mm 0 0; padding-left: 4mm; font-size: 6.8pt; line-height: 1.5; color: #3A3836; }
+    .doc .d-cond li { margin-bottom: 1.2mm; break-inside: avoid; }
     .doc .d-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; align-items: end; margin-top: 6mm; page-break-inside: avoid; }
     .doc .d-sign { text-align: right; font-size: 9.5pt; } .doc .d-sign .d-rule { margin: 0 0 2mm auto; }
     .doc .d-sign .space { height: 12mm; } .doc .d-sign .d-lab { margin-top: 1mm; }

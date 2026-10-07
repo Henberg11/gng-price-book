@@ -12,8 +12,25 @@
   const NL = String.fromCharCode(10);
   const STATES = ['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Chandigarh','Jammu and Kashmir','Ladakh','Puducherry','Andaman and Nicobar Islands','Dadra and Nagar Haveli and Daman and Diu','Lakshadweep'];
 
+  // Conditions of sale, printed small at the foot of every document. These are the ones that bind an
+  // order - money, delivery, risk, returns - and they belong here rather than in the catalogue, whose
+  // terms page covers only what a reader needs while choosing.
+  const CONDITIONS = [
+    'Prices are exclusive of taxes. GST is charged as applicable.',
+    'An advance confirms the order. Stock is reserved and production begins on receipt of the advance, and of approved artwork where the order carries branding.',
+    'Delivery timelines run from order confirmation and artwork approval, and exclude transport delays and events beyond our control.',
+    'Freight is additional unless quoted. Dispatch to more than one address is charged per address.',
+    'Items are subject to availability. An unavailable hamper component may be substituted with one of equal or higher value, with intimation before dispatch.',
+    'Goods once sold are not returnable. Branded and personalised items cannot be cancelled or exchanged once production has begun.',
+    'Edible items are not returnable. They carry the manufacturer\'s best-before date and should be stored cool and dry. Hampers contain nuts and dairy and may carry traces of other allergens.',
+    'Warranty on electrical items, where offered, is the manufacturer\'s and is handled with them directly.',
+    'Risk passes on delivery to the consignee or their representative. Transit damage must be reported with photographs within 48 hours of delivery, and shortages within 24 hours.',
+    'Subject to the jurisdiction of courts at Ahmedabad, Gujarat.',
+  ];
+  const QUOTE_VALIDITY = 'This quotation holds for seven days from its date.';
+
   const DEFAULT_BUSINESS = { name: "Gifts N' Glam", tagline: 'Curated by Priyal Parekh', address: 'Ahmedabad, Gujarat', state: 'Gujarat', phone: '', email: '', gstin: '',
-    bank: { name: '', account: '', ifsc: '', upi: '' }, terms: 'Payment within 7 days of the invoice date. Goods once sold are not returnable. Delivery pan-India; charges as quoted.', proforma_note: 'This proforma is a quotation. Please confirm the order and make the advance payment to the account below; the tax invoice follows on dispatch.' };
+    bank: { name: '', account: '', ifsc: '', upi: '' }, terms: 'Payment within 7 days of the invoice date.', proforma_note: 'This proforma is a quotation. Please confirm the order and make the advance payment to the account below; the tax invoice follows on dispatch.' };
 
   let business = null, clients = {}, invoices = {}, loaded = false, editing = null, picking = false;
   const DRAFT_KEY = 'gng-working-draft';
@@ -397,6 +414,10 @@
       ${inv.notes ? `<div class="d-note">${esc(inv.notes)}</div>` : ''}
       ${!isInv && b.proforma_note ? `<div class="d-note">${esc(b.proforma_note)}</div>` : ''}
       ${hasBank ? `<div class="d-block"><div class="d-lab">Payment</div><div class="d-pay"><div>${bank.holder ? `<div>${esc(bank.holder)}</div>` : ''}${bank.name ? `<div>${esc(bank.name)}</div>` : ''}</div><div>${bank.account ? `<div>Account ${esc(bank.account)}${bank.type ? ' (' + esc(bank.type) + ')' : ''}</div>` : ''}${bank.ifsc ? `<div>IFSC ${esc(bank.ifsc)}</div>` : ''}${bank.upi ? `<div>UPI ${esc(bank.upi)}</div>` : ''}</div></div></div>` : ''}
+      <div class="d-cond">
+        <div class="d-lab">Conditions of sale</div>
+        <ol>${(isInv ? CONDITIONS : [QUOTE_VALIDITY, ...CONDITIONS]).map(c => `<li>${esc(c)}</li>`).join('')}</ol>
+      </div>
       <div class="d-foot">
         <div>${inv.terms ? `<div class="d-lab">Terms</div><div>${br(inv.terms)}</div>` : ''}</div>
         <div class="d-sign"><div class="space"></div><hr class="d-rule"><div>For ${esc(b.name)}</div><div class="d-lab">Authorised signatory</div></div>

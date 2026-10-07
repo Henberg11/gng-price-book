@@ -1,6 +1,6 @@
 // GnG Price Book — Selections: shortlist approved catalog pages for a client and share one PDF from the phone.
 // Pages come from the data repo (pages/<ref>.pdf, synced by the studio); the cover is drawn here with the brand fonts
-// (assets/fonts/*, assets/logo-full.png); pages/closing.pdf is the brand's closing page. Merged with pdf-lib in the browser.
+// (assets/fonts/*, assets/logo-full.png); pages/closing.pdf is the brand's closing page and pages/terms.pdf its terms. Merged with pdf-lib in the browser.
 // Working basket: localStorage 'gng-selection'. Saved selections: selections/<id>.json in the data repo (page-written; the studio never touches them).
 (function () {
   const S = () => window.PB;
@@ -174,6 +174,10 @@
       const bytes = await gh.bytes('pages/closing.pdf');
       if (bytes) { const src = await PDFDocument.load(bytes); const pages = await out.copyPages(src, src.getPageIndices()); pages.forEach(p => out.addPage(p)); }
       else msg('No closing page in the data repo yet — skipped');
+    }
+    {                                                   // the terms page closes every shared PDF
+      const bytes = await gh.bytes('pages/terms.pdf');
+      if (bytes) { const src = await PDFDocument.load(bytes); const pages = await out.copyPages(src, src.getPageIndices()); pages.forEach(p => out.addPage(p)); }
     }
     out.setTitle(`Gifts N' Glam — ${sel.client || 'a selection'}`); out.setAuthor("Gifts N' Glam");
     return out.save();
