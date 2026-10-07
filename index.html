@@ -62,6 +62,9 @@
   .row .s { font-size: 12px; color: var(--muted); }
   .row .ref { font-variant-numeric: tabular-nums; letter-spacing: .1em; font-size: 12px; color: var(--muted); }
   .row .priced { color: var(--ok); }
+  .row.just { animation: justseen 1.6s ease-out; }
+  @keyframes justseen { from { background: var(--soft); } to { background: transparent; } }
+  @media (prefers-reduced-motion: reduce) { .row.just { animation: none; } }
 
   .item { margin-top: 18px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
   .item img { display: block; width: 100%; max-height: 380px; object-fit: contain; background: var(--soft); }
@@ -253,6 +256,9 @@
     : (pr && pr.vendor ? [{ name: String(pr.vendor), moq: null, price: null }] : []);
 
   let items = [], prices = {}, current = null, revealed = false;
+  // Opening an item hides the list and shows a short page, so the browser forgets how far down the
+  // list you were. Remember the row and the offset, and put both back when the list returns.
+  let listScroll = 0, listAnchor = null;
 
   function setStatus(t, err) { const s = $('#status'); s.textContent = t || ''; s.classList.toggle('err', !!err); }
 
@@ -310,7 +316,7 @@
     $('#btnEdit').onclick = () => renderEditor(it, pr);
     $('#btnAddDoc').onclick = () => { if (window.Invoices) window.Invoices.addFromItem(it); };
     $('#btnAddSel').onclick = () => { if (window.Selections) window.Selections.addFromItem(it); };
-    $('#btnBack').onclick = () => { current = null; v.innerHTML = ''; showList(); };
+    $('#btnBack').onclick = () => { current = null; v.innerHTML = ''; showList(true); };
     const eye = $('#btnEye');
     if (eye) eye.onclick = () => { revealed = !revealed; el.classList.toggle('revealed', revealed); eye.classList.toggle('on', revealed); eye.setAttribute('aria-pressed', String(revealed)); eye.innerHTML = (revealed ? EYE_OFF : EYE) + (revealed ? ' Hide cost' : ' Show cost'); };
     if (editing) renderEditor(it, pr);
@@ -418,7 +424,7 @@
     return { components: comps, extra_label: $('#edExtraLabel').value.trim() || 'Packaging and box', extra_cost: num($('#edExtra').value) ?? 0, sale: num($('#edSale').value), vendors: [...document.querySelectorAll('#edVendors tbody tr')].map(tr => ({ name: tr.querySelector('.v-name').value.trim(), moq: num(tr.querySelector('.v-moq').value), price: num(tr.querySelector('.v-price').value) })).filter(v => v.name || v.moq != null || v.price != null), notes: [...document.querySelectorAll('#edNotes .nrow')].map(r => ({ t: r.querySelector('input').value.trim(), h: r.querySelector('.vis').dataset.h === '1' })).filter(n => n.t) };
   }
 
-  function showList() {
+  function showList(restore = false) {
     const l = $('#list'); l.hidden = false; l.innerHTML = '';
     if (!items.length) { l.innerHTML = '<div class="empty">No items synced yet. In Claude Code, run /studio sync.</div>'; return; }
     const groups = {};
@@ -429,11 +435,23 @@
         const pr = calc(prices[it.ref]);
         const r = document.createElement('div'); r.className = 'row';
         r.innerHTML = `${it.photo ? `<img data-photo="${esc(it.photo)}" alt="">` : '<div class="noimg"></div>'}<div><div class="t">${esc(it.title)}</div><div class="s">${pr.has ? `<span class="priced">${money(pr.sale)}</span>` : 'no prices yet'}${it.status === 'draft' ? ' · draft' : ''}</div></div><div class="ref">${esc(it.ref)}</div>`;
+        r.dataset.ref = it.ref;
         r.onclick = () => { if (window.Invoices && window.Invoices.onPick(it)) return; if (window.Selections && window.Selections.onPick(it)) return; open(it.ref); };
         l.appendChild(r);
       });
     });
     gh.hydratePhotos(l);
+    if (restore) restoreList();
+  }
+
+  function restoreList() {
+    const row = listAnchor ? $('#list').querySelector('.row[data-ref="' + CSS.escape(listAnchor) + '"]') : null;
+    if (listScroll) window.scrollTo(0, listScroll);
+    if (!row) return;
+    const r = row.getBoundingClientRect();                     // the list may have changed length since
+    if (r.top < 56 || r.bottom > window.innerHeight) row.scrollIntoView({ block: 'center' });
+    row.classList.add('just');
+    setTimeout(() => row.classList.remove('just'), 1700);
   }
 
   async function open(ref) {
@@ -443,13 +461,14 @@
     if (window.Invoices && window.Invoices.onPick(it)) { $('#ref').value = ''; return; }
     if (window.Selections && window.Selections.onPick(it)) { $('#ref').value = ''; return; }
     if (window.Invoices) window.Invoices.stash();
+    if (!$('#list').hidden) { listScroll = window.scrollY; listAnchor = it.ref; }
     current = it.ref; $('#ref').value = it.ref; $('#list').hidden = true; setStatus('');
     renderItem(it, prices[it.ref]);
   }
 
   $('#btnFind').onclick = () => open($('#ref').value);
   $('#ref').addEventListener('keydown', e => { if (e.key === 'Enter') open($('#ref').value); });
-  $('#btnAll').onclick = () => { if (window.Invoices) window.Invoices.stash(); current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); showList(); };
+  $('#btnAll').onclick = () => { const back = !!current; if (window.Invoices) window.Invoices.stash(); current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); showList(back); };
   $('#btnDraft').onclick = () => { current = null; $('#view').innerHTML = ''; $('#ref').value = ''; setStatus(''); if (window.Invoices) window.Invoices.resume(); };
   function badge(text) { const b = $('#btnDraft'); b.hidden = !text; b.textContent = text || ''; }
   function selBadge(text) { const b = $('#btnSel'); b.textContent = text || 'Selection'; b.classList.toggle('badge', !!text); }
