@@ -100,8 +100,19 @@
       }
     } catch (e) { host.innerHTML = `<div class="empty">Could not load: ${esc(e.message)}</div>`; return; }
     if (!$('#selSaved')) return;
-    host.innerHTML = saved.length ? saved.map(s => `<div class="row sel-saved" data-id="${esc(s.id)}"><div class="inv-ico">PDF</div><div><div class="t">${esc(s.client || s.id)}</div><div class="s">${s.items.length} page${s.items.length === 1 ? '' : 's'} · ${esc((s.updated || '').slice(0, 10))}</div></div><div class="ref">open</div></div>`).join('') : '<div class="empty">None saved yet.</div>';
-    host.querySelectorAll('.sel-saved').forEach(r => r.onclick = () => { const s = saved.find(x => x.id === r.dataset.id); if (!s) return; sel = { client: s.client || '', items: s.items.slice(), cover: s.cover !== false, closing: s.closing !== false, id: s.id }; stash(); open(); toast('Loaded ' + (s.client || s.id)); });
+    host.innerHTML = saved.length ? saved.map(s => `<div class="row sel-saved" data-id="${esc(s.id)}"><div class="inv-ico">PDF</div><div><div class="t">${esc(s.client || s.id)}</div><div class="s">${s.items.length} page${s.items.length === 1 ? '' : 's'} · ${esc((s.updated || '').slice(0, 10))}</div></div><button type="button" class="ghost small sel-share">Share</button></div>`).join('') : '<div class="empty">None saved yet.</div>';
+    host.querySelectorAll('.sel-saved').forEach(r => {
+      const s = saved.find(x => x.id === r.dataset.id); if (!s) return;
+      r.onclick = () => { sel = { client: s.client || '', items: s.items.slice(), cover: s.cover !== false, closing: s.closing !== false, id: s.id }; stash(); open(); toast('Loaded ' + (s.client || s.id)); };
+      r.querySelector('.sel-share').onclick = async ev => {
+        ev.stopPropagation();                        // tapping the row still loads it; this only shares
+        const b = ev.currentTarget, was = b.textContent;
+        b.disabled = true; b.textContent = 'Building…';
+        try { await share(toast, s); }
+        catch (e) { toast('Could not share: ' + e.message, true); }
+        b.disabled = false; b.textContent = was;
+      };
+    });
   }
 
   async function save() {
@@ -129,11 +140,11 @@
     if (cur) lines.push(cur); return lines;
   }
 
-  async function coverPage(pdf, fonts, logoBytes) {
+  async function coverPage(pdf, fonts, logoBytes, which) {
     const { rgb } = PDFLib;
     const page = pdf.addPage([210 * MM, 297 * MM]); const W = page.getWidth(), H = page.getHeight();
     page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: rgb(...NAVY) });
-    const client = (sel.client || '').trim();
+    const client = (which.client || '').trim();
     const label = (client ? 'Prepared for' : 'A selection').toUpperCase(), date = monthYear().toUpperCase();
     const logoW = 72 * MM; const logo = await pdf.embedPng(logoBytes); const logoH = logoW * logo.height / logo.width;
     const nameLines = client ? wrap(fonts.bodoni, client, 24, 140 * MM) : [];
@@ -149,20 +160,21 @@
     drawTracked(page, fonts.light, date, 7, 0.20, y, rgb(...CREAM));
   }
 
-  async function build(msg) {
+  async function build(msg, which) {
+    which = which || sel;
     const gh = S().gh;
-    const items = sel.items.map(ref => ({ ref, it: findItem(ref) }));
+    const items = which.items.map(ref => ({ ref, it: findItem(ref) }));
     const bad = items.filter(x => !x.it || x.it.status !== 'final' || !x.it.page);
     if (bad.length) throw new Error('remove the pages marked "no longer shareable" first (' + bad.map(x => x.ref).join(', ') + ')');
     msg('Loading PDF tools…'); await libs();
     const { PDFDocument } = PDFLib;
     const out = await PDFDocument.create(); out.registerFontkit(fontkit);
-    if (sel.cover) {
+    if (which.cover !== false) {
       msg('Drawing the cover…');
       const [b1, b2, logo] = await Promise.all([gh.bytes('assets/fonts/BodoniModa-Regular.ttf'), gh.bytes('assets/fonts/Montserrat-Light.ttf'), gh.bytes('assets/logo-full.png')]);
       if (!b1 || !b2 || !logo) throw new Error('cover assets are missing from the data repo — run /studio run and push');
       const fonts = { bodoni: await out.embedFont(b1, { subset: true }), light: await out.embedFont(b2, { subset: true }) };
-      await coverPage(out, fonts, logo);
+      await coverPage(out, fonts, logo, which);
     }
     let n = 0;
     for (const { ref, it } of items) {
@@ -170,7 +182,7 @@
       const bytes = await gh.bytes(it.page); if (!bytes) throw new Error(`page for ${it.title} (Ref. ${ref}) is not in the data repo yet — push the sync from the studio`);
       const src = await PDFDocument.load(bytes); const pages = await out.copyPages(src, src.getPageIndices()); pages.forEach(p => out.addPage(p));
     }
-    if (sel.closing) {
+    if (which.closing !== false) {
       const bytes = await gh.bytes('pages/closing.pdf');
       if (bytes) { const src = await PDFDocument.load(bytes); const pages = await out.copyPages(src, src.getPageIndices()); pages.forEach(p => out.addPage(p)); }
       else msg('No closing page in the data repo yet — skipped');
@@ -179,16 +191,21 @@
       const bytes = await gh.bytes('pages/terms.pdf');
       if (bytes) { const src = await PDFDocument.load(bytes); const pages = await out.copyPages(src, src.getPageIndices()); pages.forEach(p => out.addPage(p)); }
     }
-    out.setTitle(`Gifts N' Glam — ${sel.client || 'a selection'}`); out.setAuthor("Gifts N' Glam");
+    out.setTitle(`Gifts N' Glam — ${which.client || 'a selection'}`); out.setAuthor("Gifts N' Glam");
     return out.save();
   }
 
-  async function share(msg) {
-    const bytes = await build(msg);
-    const name = `Gifts N Glam - ${(sel.client || 'Selection').replace(/[\\/:*?"<>|']+/g, '')} - ${new Date().toISOString().slice(0, 10)}.pdf`;
+  async function share(msg, which) {
+    which = which || sel;
+    const bytes = await build(msg, which);
+    const name = `Gifts N Glam - ${(which.client || 'Selection').replace(/[\\/:*?"<>|']+/g, '')} - ${new Date().toISOString().slice(0, 10)}.pdf`;
     const file = new File([bytes], name, { type: 'application/pdf' });
+    // The share sheet is the only route a web page has to hand a file to WhatsApp: it offers WhatsApp
+    // and WhatsApp Business beside everything else, and the contact is chosen inside whichever is picked.
+    // wa.me can open a named chat but carries text only - it cannot attach a PDF.
+    const text = which.client ? `Gifts N' Glam — a selection for ${which.client}` : "Gifts N' Glam — a selection";
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: name }); msg(`Shared ${name} (${(bytes.length / 1048576).toFixed(1)} MB)`); return; }
+      try { await navigator.share({ files: [file], title: name, text }); msg(`Shared ${name} (${(bytes.length / 1048576).toFixed(1)} MB)`); return; }
       catch (e) { if (e.name === 'AbortError') { msg('Share cancelled'); return; } }
     }
     const url = URL.createObjectURL(file); const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
