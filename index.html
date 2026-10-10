@@ -93,7 +93,8 @@
   .empty { color: var(--muted); font-size: 14px; padding: 10px 0; }
 
   /* editor */
-  .edit table input { width: 100%; font: inherit; font-size: 14px; padding: 7px 8px; border: 1px solid var(--input-line); border-radius: 6px; background: var(--input); color: var(--ink); }
+  .edit table input, .edit table textarea { width: 100%; font: inherit; font-size: 14px; padding: 7px 8px; border: 1px solid var(--input-line); border-radius: 6px; background: var(--input); color: var(--ink); }
+  .edit table textarea.grow { resize: none; overflow: hidden; line-height: 1.4; display: block; }
   .edit table input.n { text-align: right; font-variant-numeric: tabular-nums; }
   .edit .del { background: none; border: 0; color: var(--warn); padding: 4px; font-size: 16px; }
   .edit .field { margin-top: 10px; }
@@ -131,6 +132,25 @@
   .vtag { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); border: 1px solid var(--gold); border-radius: 5px; padding: 1px 5px; margin-left: 6px; white-space: nowrap; }
   #edVendors input { font: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--input-line); border-radius: 8px; background: var(--input); color: var(--ink); width: 100%; }
   #edVendors .n input { text-align: right; }
+  /* On a phone the editor's name column is squeezed to about 80px, so a supplier like
+     "Surajsteel - Mug Dubbling (CASA) (100pcs) mobile stand(BNI)" scrolls inside its own field and
+     cannot be read at a glance. Below 560px the row becomes a grid: the name takes the full width on
+     its own line and the figures sit underneath it. */
+  /* wide enough for the table: give the name most of the row so it wraps in two lines, not five */
+  @media (min-width: 561px) {
+    #edRows th:first-child, #edRows td:first-child { width: 46%; }
+    #edVendors th:first-child, #edVendors td:first-child { width: 58%; }
+  }
+  @media (max-width: 560px) {
+    #edRows thead, #edVendors thead { display: none; }
+    #edRows tbody tr, #edVendors tbody tr { display: grid; gap: 6px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    #edRows tbody tr { grid-template-columns: 1fr 1fr 1fr auto; }
+    #edVendors tbody tr { grid-template-columns: 1fr 1fr auto; }
+    #edRows tbody td, #edVendors tbody td { display: block; border: 0; padding: 0; }
+    #edRows tbody td:first-child, #edVendors tbody td:first-child { grid-column: 1 / -1; }
+    #edRows tbody td input, #edVendors tbody td input { width: 100%; }
+    #edRows .del, #edVendors .del { justify-self: end; }
+  }
 
   /* ---- notes on a price record: Customer notes travel to documents, Internal ones never leave ---- */
   .notelist { margin-top: 10px; }
@@ -376,11 +396,19 @@
       const c = calc(readEditor());
       $('#edTotals').textContent = `Cost ${money(c.cost)} · Sale ${money(c.sale)} · Margin ${money(c.margin)}${c.pct != null ? ' (' + c.pct.toFixed(0) + '%)' : ''}`;
     };
-    host.querySelectorAll('input').forEach(i => i.addEventListener('input', totals));
+    const grow = el => { el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; };
+    const wireGrow = root => root.querySelectorAll('textarea.grow').forEach(t => {
+      grow(t);
+      t.addEventListener('input', () => grow(t));
+      t.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });   // a name is one line
+    });
+    host.querySelectorAll('input, textarea').forEach(i => i.addEventListener('input', totals));
+    wireGrow(host);
     host.querySelectorAll('.del').forEach(b => b.onclick = () => { b.closest('tr').remove(); totals(); });
-    $('#edAdd').onclick = () => { $('#edRows tbody').insertAdjacentHTML('beforeend', rowHtml({ name: '', qty: 1, unit_cost: '', unit_sale: '' })); const tr = $('#edRows tbody').lastElementChild; tr.querySelectorAll('input').forEach(i => i.addEventListener('input', totals)); tr.querySelector('.del').onclick = () => { tr.remove(); totals(); }; tr.querySelector('input').focus(); };
+    $('#edAdd').onclick = () => { $('#edRows tbody').insertAdjacentHTML('beforeend', rowHtml({ name: '', qty: 1, unit_cost: '', unit_sale: '' })); const tr = $('#edRows tbody').lastElementChild; tr.querySelectorAll('input, textarea').forEach(i => i.addEventListener('input', totals)); wireGrow(tr); tr.querySelector('.del').onclick = () => { tr.remove(); totals(); }; tr.querySelector('textarea').focus(); };
     const wireVendor = tr => {
-      tr.querySelectorAll('input').forEach(i => i.addEventListener('input', totals));
+      tr.querySelectorAll('input, textarea').forEach(i => i.addEventListener('input', totals));
+      wireGrow(tr);
       tr.querySelector('.del').onclick = () => {
         const body = tr.closest('tbody'); tr.remove();
         if (!body.children.length) body.insertAdjacentHTML('beforeend', vendorRowHtml({ name: '', moq: null, price: null }));   // keep one row to type into
@@ -391,7 +419,7 @@
     $('#edVendorAdd').onclick = () => {
       const body = $('#edVendors tbody');
       body.insertAdjacentHTML('beforeend', vendorRowHtml({ name: '', moq: null, price: null }));
-      wireVendor(body.lastElementChild); body.lastElementChild.querySelector('input').focus();
+      wireVendor(body.lastElementChild); body.lastElementChild.querySelector('textarea').focus();
     };
     wireNotes();
     $('#edNoteAdd').onclick = () => { $('#edNotes').insertAdjacentHTML('beforeend', noteRowHtml(null)); wireNotes(); $('#edNotes').lastElementChild.querySelector('input').focus(); };
@@ -425,22 +453,22 @@
   }
 
   function vendorRowHtml(v) {
-    return `<tr><td><input type="text" class="v-name" value="${esc(v.name || '')}" placeholder="e.g. Shah Enterprise, Rakhial"></td>
-      <td class="n"><input type="text" class="v-moq" inputmode="numeric" value="${v.moq ?? ''}" placeholder="50"></td>
-      <td class="n"><input type="text" class="v-price" inputmode="decimal" value="${v.price ?? ''}" placeholder="320"></td>
+    return `<tr><td><textarea class="v-name grow" rows="1" placeholder="e.g. Shah Enterprise, Rakhial">${esc(v.name || '')}</textarea></td>
+      <td class="n"><input type="text" class="v-moq" inputmode="numeric" value="${v.moq ?? ''}" placeholder="MOQ"></td>
+      <td class="n"><input type="text" class="v-price" inputmode="decimal" value="${v.price ?? ''}" placeholder="Price ₹"></td>
       <td><button type="button" class="del" aria-label="Remove vendor">\u2715</button></td></tr>`;
   }
 
   function rowHtml(r) {
-    return `<tr><td><input type="text" class="c-name" value="${esc(r.name)}" placeholder="e.g. Stainless-steel flask"></td>
-      <td><input type="text" class="n c-qty" inputmode="decimal" value="${r.qty ?? 1}"></td>
-      <td><input type="text" class="n c-cost" inputmode="decimal" value="${r.unit_cost ?? ''}"></td>
-      <td><input type="text" class="n c-sale" inputmode="decimal" value="${r.unit_sale ?? ''}"></td>
+    return `<tr><td><textarea class="c-name grow" rows="1" placeholder="e.g. Stainless-steel flask">${esc(r.name)}</textarea></td>
+      <td><input type="text" class="n c-qty" inputmode="decimal" value="${r.qty ?? 1}" placeholder="Qty"></td>
+      <td><input type="text" class="n c-cost" inputmode="decimal" value="${r.unit_cost ?? ''}" placeholder="Cost ₹"></td>
+      <td><input type="text" class="n c-sale" inputmode="decimal" value="${r.unit_sale ?? ''}" placeholder="Sale ₹"></td>
       <td><button type="button" class="del" aria-label="Remove">✕</button></td></tr>`;
   }
   function readEditor() {
-    const comps = [...document.querySelectorAll('#edRows tbody tr')].map(tr => ({ name: tr.querySelector('.c-name').value.trim(), qty: num(tr.querySelector('.c-qty').value) ?? 1, unit_cost: num(tr.querySelector('.c-cost').value) ?? 0, unit_sale: num(tr.querySelector('.c-sale').value) })).filter(c => c.name);
-    return { components: comps, extra_label: $('#edExtraLabel').value.trim() || 'Packaging and box', extra_cost: num($('#edExtra').value) ?? 0, sale: num($('#edSale').value), vendors: [...document.querySelectorAll('#edVendors tbody tr')].map(tr => ({ name: tr.querySelector('.v-name').value.trim(), moq: num(tr.querySelector('.v-moq').value), price: num(tr.querySelector('.v-price').value) })).filter(v => v.name || v.moq != null || v.price != null), notes: [...document.querySelectorAll('#edNotes .nrow')].map(r => ({ t: r.querySelector('input').value.trim(), h: r.querySelector('.vis').dataset.h === '1' })).filter(n => n.t) };
+    const comps = [...document.querySelectorAll('#edRows tbody tr')].map(tr => ({ name: tr.querySelector('.c-name').value.replace(/\s+/g, ' ').trim(), qty: num(tr.querySelector('.c-qty').value) ?? 1, unit_cost: num(tr.querySelector('.c-cost').value) ?? 0, unit_sale: num(tr.querySelector('.c-sale').value) })).filter(c => c.name);
+    return { components: comps, extra_label: $('#edExtraLabel').value.trim() || 'Packaging and box', extra_cost: num($('#edExtra').value) ?? 0, sale: num($('#edSale').value), vendors: [...document.querySelectorAll('#edVendors tbody tr')].map(tr => ({ name: tr.querySelector('.v-name').value.replace(/\s+/g, ' ').trim(), moq: num(tr.querySelector('.v-moq').value), price: num(tr.querySelector('.v-price').value) })).filter(v => v.name || v.moq != null || v.price != null), notes: [...document.querySelectorAll('#edNotes .nrow')].map(r => ({ t: r.querySelector('input').value.trim(), h: r.querySelector('.vis').dataset.h === '1' })).filter(n => n.t) };
   }
 
   function showList(restore = false) {
