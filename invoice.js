@@ -12,6 +12,32 @@
   const NL = String.fromCharCode(10);
   const STATES = ['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Delhi','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Chandigarh','Jammu and Kashmir','Ladakh','Puducherry','Andaman and Nicobar Islands','Dadra and Nagar Haveli and Daman and Diu','Lakshadweep'];
 
+  // GSTIN state codes, used to catch a number typed against the wrong state.
+  const GST_STATE = { '01': 'Jammu and Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh', '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan', '09': 'Uttar Pradesh',
+    '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam', '19': 'West Bengal', '20': 'Jharkhand',
+    '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat', '26': 'Dadra and Nagar Haveli and Daman and Diu', '27': 'Maharashtra', '29': 'Karnataka', '30': 'Goa', '31': 'Lakshadweep',
+    '32': 'Kerala', '33': 'Tamil Nadu', '34': 'Puducherry', '35': 'Andaman and Nicobar Islands', '36': 'Telangana', '37': 'Andhra Pradesh', '38': 'Ladakh' };
+  const GSTIN_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  // A GSTIN carries its own check character, so a mistyped one can be caught before it reaches a
+  // document. Returns {error} (refuse the save) or {warn} (save, but say something looks wrong).
+  function checkGstin(g, state) {
+    if (!g) return {};
+    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(g))
+      return { error: 'That GSTIN is not the right shape. It is 15 characters: two state digits, a ten-character PAN, one more character, the letter Z, then a check character.' };
+    let sum = 0;
+    for (let i = 0; i < 14; i++) { const p = GSTIN_CHARS.indexOf(g[i]) * (i % 2 ? 2 : 1); sum += Math.floor(p / 36) + (p % 36); }
+    if (GSTIN_CHARS[(36 - (sum % 36)) % 36] !== g[14])
+      return { error: 'That GSTIN fails its own check character, so one of the first fourteen is wrong. Read it off the registration certificate again.' };
+    const st = GST_STATE[g.slice(0, 2)];
+    if (st && state && st !== state)
+      return { warn: 'Saved. Note the GSTIN begins ' + g.slice(0, 2) + ', which is ' + st + ', but the state above says ' + state + '. Correct whichever is wrong.' };
+    return {};
+  }
+
+  // The name the business is registered under. Falls back to the brand name when no firm is on file.
+  const legalName = b => ((b && b.legal_name) || '').trim() || (b ? b.name : '');
+
   // Conditions of sale, printed small at the foot of every document. These are the ones that bind an
   // order - money, delivery, risk, returns - and they belong here rather than in the catalogue, whose
   // terms page covers only what a reader needs while choosing.
@@ -29,7 +55,7 @@
   ];
   const QUOTE_VALIDITY = 'This quotation holds for seven days from its date.';
 
-  const DEFAULT_BUSINESS = { name: "Gifts N' Glam", tagline: 'Curated by Priyal Parekh', address: 'Ahmedabad, Gujarat', state: 'Gujarat', phone: '', email: '', gstin: '',
+  const DEFAULT_BUSINESS = { name: "Gifts N' Glam", legal_name: '', tagline: 'Curated by Priyal Parekh', address: 'Ahmedabad, Gujarat', state: 'Gujarat', phone: '', email: '', gstin: '',
     bank: { name: '', account: '', ifsc: '', upi: '' }, terms: 'Payment within 7 days of the invoice date.', proforma_note: 'This proforma is a quotation. Please confirm the order and make the advance payment to the account below; the tax invoice follows on dispatch.' };
 
   let business = null, clients = {}, invoices = {}, loaded = false, editing = null, picking = false;
@@ -359,8 +385,9 @@
   // ---------- business details ----------
   function renderBusiness() {
     const v = host(); const b = business; const bank = b.bank || {};
-    v.innerHTML = `<div class="item edit"><div class="body"><h3>Business details</h3><p class="desc">Printed on every document. Update the name and GSTIN once the company is registered.</p>
-      <div class="field two"><div><label for="bName">Business name</label><input id="bName" type="text" value="${esc(b.name)}"></div><div><label for="bGstin">GSTIN (blank until registered)</label><input id="bGstin" type="text" value="${esc(b.gstin || '')}"></div></div>
+    v.innerHTML = `<div class="item edit"><div class="body"><h3>Business details</h3><p class="desc">Printed on every document. The brand name heads the page; the firm name and GSTIN identify you as the supplier on a tax invoice.</p>
+      <div class="field two"><div><label for="bName">Brand name (heads the page)</label><input id="bName" type="text" value="${esc(b.name)}"></div><div><label for="bLegal">Firm name (as registered)</label><input id="bLegal" type="text" value="${esc(b.legal_name || '')}" placeholder="leave blank to use the brand name"></div></div>
+      <div class="field"><label for="bGstin">GSTIN (blank until registered)</label><input id="bGstin" type="text" value="${esc(b.gstin || '')}" placeholder="15 characters"></div>
       <div class="field"><label for="bTag">Line under the name</label><input id="bTag" type="text" value="${esc(b.tagline || '')}"></div>
       <div class="field"><label for="bAddr">Address</label><textarea id="bAddr" rows="2">${esc(b.address || '')}</textarea></div>
       <div class="field two"><div><label for="bState">State</label><select id="bState">${STATES.map(s => `<option ${s === b.state ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div><label for="bPhone">Phone</label><input id="bPhone" type="text" value="${esc(b.phone || '')}"></div></div>
@@ -374,10 +401,13 @@
       <div class="actions"><button type="button" id="bSave">Save</button><button type="button" class="ghost" id="bBack">Back</button></div><div class="status" id="bMsg"></div></div></div>`;
     $('#bBack').onclick = renderList;
     $('#bSave').onclick = async () => {
-      business = { name: $('#bName').value.trim() || "Gifts N' Glam", tagline: $('#bTag').value.trim(), gstin: $('#bGstin').value.trim().toUpperCase(), address: $('#bAddr').value.trim(), state: $('#bState').value, phone: $('#bPhone').value.trim(), email: $('#bEmail').value.trim(),
+      const gstin = $('#bGstin').value.trim().toUpperCase();
+      const g = checkGstin(gstin, $('#bState').value);
+      if (g.error) { $('#bMsg').textContent = g.error; return; }
+      business = { name: $('#bName').value.trim() || "Gifts N' Glam", legal_name: $('#bLegal').value.trim(), tagline: $('#bTag').value.trim(), gstin, address: $('#bAddr').value.trim(), state: $('#bState').value, phone: $('#bPhone').value.trim(), email: $('#bEmail').value.trim(),
         bank: { holder: $('#kHolder').value.trim(), type: $('#kType').value.trim(), name: $('#kName').value.trim(), account: $('#kAcc').value.trim(), ifsc: $('#kIfsc').value.trim().toUpperCase(), upi: $('#kUpi').value.trim() }, terms: $('#bTerms').value.trim(), proforma_note: $('#bPI').value.trim() };
       $('#bSave').disabled = true;
-      try { await S().gh.putJson('settings/business.json', business, 'Business details'); $('#bMsg').textContent = 'Saved'; } catch (e) { $('#bMsg').textContent = 'Could not save: ' + e.message; }
+      try { await S().gh.putJson('settings/business.json', business, 'Business details'); $('#bMsg').textContent = g.warn || 'Saved'; } catch (e) { $('#bMsg').textContent = 'Could not save: ' + e.message; }
       $('#bSave').disabled = false;
     };
   }
@@ -402,15 +432,14 @@
       <div class="d-meta">
         <div><span>Number</span>${esc(inv.number)}</div><div><span>Date</span>${fmtDate(inv.date)}</div>
         ${inv.proforma_ref ? `<div><span>Against proforma</span>${esc(inv.proforma_ref)}</div>` : ''}
-        ${b.gstin ? `<div><span>GSTIN</span>${esc(b.gstin)}</div>` : ''}
       </div>
       <div class="d-parties">
-        <div><div class="d-lab">From</div><div class="d-name">${esc(b.name)}</div><div>${br(b.address || '')}</div>${b.phone ? `<div>${esc(b.phone)}</div>` : ''}${b.email ? `<div>${esc(b.email)}</div>` : ''}</div>
+        <div><div class="d-lab">From</div><div class="d-name">${esc(legalName(b))}</div>${legalName(b) !== b.name ? `<div class="d-sub">trading as ${esc(b.name)}</div>` : ''}<div>${br(b.address || '')}</div>${b.gstin ? `<div>GSTIN ${esc(b.gstin)}</div>` : ''}${b.phone ? `<div>${esc(b.phone)}</div>` : ''}${b.email ? `<div>${esc(b.email)}</div>` : ''}</div>
         <div><div class="d-lab">${isInv ? 'Billed to' : 'Prepared for'}</div><div class="d-name">${esc(inv.client.name)}</div><div>${br(inv.client.address || '')}</div>${inv.client.state ? `<div>${esc(inv.client.state)}</div>` : ''}${inv.client.gstin ? `<div>GSTIN ${esc(inv.client.gstin)}</div>` : ''}${inv.client.phone ? `<div>${esc(inv.client.phone)}</div>` : ''}</div>
       </div>
       <table class="d-lines"><thead><tr><th class="n">#</th><th>Description</th><th>HSN</th><th class="n">Qty</th><th class="n">Unit</th><th class="n">Amount</th></tr></thead><tbody>${lines}</tbody></table>
       <div class="d-totals">${totalsHtml(c, false)}</div>
-      ${c.rate ? `<div class="d-note">Prices ${c.inclusive ? 'inclusive' : 'exclusive'} of GST. Place of supply: ${esc(inv.client.state || '—')}.${c.estimated ? ` ${esc(b.name)} is not registered under GST at present; the GST shown is an estimate and is not charged on this quotation. It will be levied on the tax invoice once registration is in place.` : ''}</div>` : ''}
+      ${c.rate ? `<div class="d-note">Prices ${c.inclusive ? 'inclusive' : 'exclusive'} of GST. Place of supply: ${esc(inv.client.state || '—')}.${c.estimated ? ` ${esc(legalName(b))} is not registered under GST at present; the GST shown is an estimate and is not charged on this quotation. It will be levied on the tax invoice once registration is in place.` : ''}</div>` : ''}
       ${inv.notes ? `<div class="d-note">${esc(inv.notes)}</div>` : ''}
       ${!isInv && b.proforma_note ? `<div class="d-note">${esc(b.proforma_note)}</div>` : ''}
       ${hasBank ? `<div class="d-block"><div class="d-lab">Payment</div><div class="d-pay"><div>${bank.holder ? `<div>${esc(bank.holder)}</div>` : ''}${bank.name ? `<div>${esc(bank.name)}</div>` : ''}</div><div>${bank.account ? `<div>Account ${esc(bank.account)}${bank.type ? ' (' + esc(bank.type) + ')' : ''}</div>` : ''}${bank.ifsc ? `<div>IFSC ${esc(bank.ifsc)}</div>` : ''}${bank.upi ? `<div>UPI ${esc(bank.upi)}</div>` : ''}</div></div></div>` : ''}
