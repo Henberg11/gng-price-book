@@ -43,7 +43,7 @@
   // terms page covers only what a reader needs while choosing.
   const CONDITIONS = [
     'Prices are exclusive of taxes. GST is charged as applicable.',
-    'An advance confirms the order. Stock is reserved and production begins on receipt of the advance, and of approved artwork where the order carries branding.',
+    'An advance confirms the order. Stock is reserved and production begins on receipt of the advance, and of approved artwork where the order carries branding. The balance falls due when the order is complete and ready for dispatch.',
     'Delivery timelines run from order confirmation and artwork approval, and exclude transport delays and events beyond our control.',
     'Freight is additional unless quoted. Dispatch to more than one address is charged per address.',
     'Items are subject to availability. An unavailable hamper component may be substituted with one of equal or higher value, with intimation before dispatch.',
@@ -56,7 +56,7 @@
   const QUOTE_VALIDITY = 'This quotation holds for seven days from its date.';
 
   const DEFAULT_BUSINESS = { name: "Gifts N' Glam", legal_name: '', tagline: 'Curated by Priyal Parekh', address: 'Ahmedabad, Gujarat', state: 'Gujarat', phone: '', email: '', gstin: '',
-    bank: { name: '', account: '', ifsc: '', upi: '' }, terms: 'Payment within 7 days of the invoice date.', proforma_note: 'This proforma is a quotation. Please confirm the order and make the advance payment to the account below; the tax invoice follows on dispatch.' };
+    bank: { name: '', account: '', ifsc: '', upi: '' }, terms: '50% advance with the order. Balance on completion of the order.', proforma_note: 'This proforma is a quotation. Please confirm the order and make the advance payment to the account below; the tax invoice follows on dispatch.' };
 
   let business = null, clients = {}, invoices = {}, loaded = false, editing = null, picking = false;
   const DRAFT_KEY = 'gng-working-draft';
@@ -449,7 +449,7 @@
       </div>
       <div class="d-foot">
         <div>${inv.terms ? `<div class="d-lab">Terms</div><div>${br(inv.terms)}</div>` : ''}</div>
-        <div class="d-sign"><div class="space"></div><hr class="d-rule"><div>For ${esc(b.name)}</div><div class="d-lab">Authorised signatory</div></div>
+        <div class="d-sign"><div class="space"></div><hr class="d-rule"><div>For ${esc(legalName(b))}</div><div class="d-lab">Authorised signatory</div></div>
       </div>
       </td></tr></tbody></table>`;
   }
