@@ -268,18 +268,22 @@
   }
 
   // ---------- build and share ----------
+  let ASSETS = null;                     // fonts and logo, fetched once per session
   async function build(inv, b, msg) {
     msg && msg('Loading PDF tools…');
     await libs();
     const D = window.Invoices._doc;
     const gh = S().gh;
-    msg && msg('Fetching the brand assets…');
-    const [bo, re, li, logo] = await Promise.all([
-      gh.bytes('assets/fonts/BodoniModa-Regular.ttf'),
-      gh.bytes('assets/fonts/Montserrat-Regular.ttf'),
-      gh.bytes('assets/fonts/Montserrat-Light.ttf'),
-      gh.bytes('assets/logo.png'),
-    ]);
+    if (!ASSETS) {
+      msg && msg('Fetching the brand assets…');
+      ASSETS = await Promise.all([
+        gh.bytes('assets/fonts/BodoniModa-Regular.ttf'),
+        gh.bytes('assets/fonts/Montserrat-Regular.ttf'),
+        gh.bytes('assets/fonts/Montserrat-Light.ttf'),
+        gh.bytes('assets/logo.png'),
+      ]);
+    }
+    const [bo, re, li, logo] = ASSETS;
     if (!bo || !re || !li) throw new Error('the brand fonts are not in the data repo yet — run a sync from the studio');
     const pdf = await PDFLib.PDFDocument.create(); pdf.registerFontkit(window.fontkit);
     const ctx = {
@@ -302,26 +306,42 @@
     return pdf.save();
   }
 
-  const clean = s => String(s || '').replace(/[\\/:*?"<>|']+/g, '').replace(/\s+/g, ' ').trim();
+  const clean = s => String(s || '').replace(/[\\\/:*?"<>|']+/g, '').replace(/\s+/g, ' ').trim();
 
-  async function share(inv, b, msg) {
+  // Drawing the PDF takes a second or two, and by the time it finishes the browser no longer counts
+  // the tap that started it as a live gesture - navigator.share() then refuses and the file quietly
+  // downloads instead of the share sheet opening. So preparing and sending are separate: prepare()
+  // does the slow part, send() is called from a tap of its own and opens the sheet straight away.
+  async function prepare(inv, b, msg) {
     const bytes = await build(inv, b, msg);
     const isInv = inv.type === 'invoice';
     const name = `${isInv ? 'Tax invoice' : 'Proforma'} ${clean(inv.number)}${inv.client.name ? ' - ' + clean(inv.client.name) : ''}.pdf`;
-    const file = new File([bytes], name, { type: 'application/pdf' });
-    const kb = (bytes.length / 1024).toFixed(0);
     // The share sheet is the only route a web page has to hand a file to WhatsApp; the contact is
     // chosen inside whichever app is picked. wa.me opens a named chat but carries text only.
     const text = `${b.name} — ${isInv ? 'tax invoice' : 'proforma'} ${inv.number}${inv.client.name ? ' for ' + inv.client.name : ''}`;
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: name, text }); msg && msg(`Shared ${name} (${kb} KB)`); return; }
-      catch (e) { if (e.name === 'AbortError') { msg && msg('Share cancelled'); return; } }
-    }
-    const url = URL.createObjectURL(file); const a = document.createElement('a');
-    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    msg && msg(`Downloaded ${name} — share it from your files (${kb} KB)`);
+    return { file: new File([bytes], name, { type: 'application/pdf' }), name, text, kb: Math.round(bytes.length / 1024) };
   }
 
-  window.DocPDF = { build, share };
+  function download(p, msg, why) {
+    const url = URL.createObjectURL(p.file); const a = document.createElement('a');
+    a.href = url; a.download = p.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    msg && msg(`${why} ${p.name} has downloaded (${p.kb} KB) — open it from your downloads and share it from there.`);
+    return 'downloaded';
+  }
+
+  // Returns 'shared', 'cancelled', 'needs-tap' (the gesture had expired - ask for one more tap) or
+  // 'downloaded'. Call it directly from a click handler, with nothing awaited before it.
+  async function send(p, msg, second) {
+    if (!navigator.canShare || !navigator.canShare({ files: [p.file] }))
+      return download(p, msg, 'This browser cannot open the share sheet, so');
+    try { await navigator.share({ files: [p.file], title: p.name, text: p.text }); msg && msg(`Shared ${p.name} (${p.kb} KB)`); return 'shared'; }
+    catch (e) {
+      if (e.name === 'AbortError') { msg && msg('Share cancelled — the PDF is still ready, tap again to send it'); return 'cancelled'; }
+      if (!second) return 'needs-tap';
+      return download(p, msg, 'The share sheet would not open (' + (e.message || e.name) + '), so');
+    }
+  }
+
+  window.DocPDF = { build, prepare, send };
 })();

@@ -58,7 +58,7 @@
   const DEFAULT_BUSINESS = { name: "Gifts N' Glam", legal_name: '', tagline: 'Curated by Priyal Parekh', address: 'Ahmedabad, Gujarat', state: 'Gujarat', phone: '', email: '', gstin: '',
     bank: { name: '', account: '', ifsc: '', upi: '' }, terms: '50% advance with the order. Balance on completion of the order.', proforma_note: 'This proforma is a quotation. Please confirm the order and make the advance payment to the account below; the tax invoice follows on dispatch.' };
 
-  let business = null, clients = {}, invoices = {}, loaded = false, editing = null, picking = false;
+  let business = null, clients = {}, invoices = {}, loaded = false, editing = null, picking = false, sharePrep = null;
   const DRAFT_KEY = 'gng-working-draft';
   try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); if (d && d.number) editing = d; } catch (e) {}   // restore an unsaved draft on load
 
@@ -245,6 +245,7 @@
   }
 
   function renderEditor(inv) {
+    sharePrep = null;                 // a prepared PDF belongs to the document that was on screen
     editing = inv; stash(); const v = host(); const isInv = inv.type === 'invoice';
     const clientOpts = Object.values(clients).sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     const stateOpts = STATES.map(s => `<option value="${s}" ${s === (inv.client.state || '') ? 'selected' : ''}>${s}</option>`).join('');
@@ -334,12 +335,27 @@
     $('#iBack').onclick = () => { stash(); renderList(); };
     $('#iSave').onclick = async () => { const inv = read(); const was = inv.number; $('#iSave').disabled = true; try { await persist(inv); if (inv.number !== was) { renderEditor(inv); } msg('Saved as ' + inv.number); } catch (e) { msg('Could not save: ' + e.message, true); } if ($('#iSave')) $('#iSave').disabled = false; };
     $('#iPrint').onclick = async () => { const inv = read(); try { await persist(inv); } catch (e) { msg('Saved locally only: ' + e.message, true); } printDoc(inv); };
-    // Share PDF: saves first, then draws the document as a real PDF and hands it to the share sheet.
+    // Share PDF: saves the document, draws it, then opens the share sheet. Drawing takes a moment,
+    // and a browser only opens the sheet while it still counts the tap as live - so when that moment
+    // has passed the button becomes "Send PDF" and the next tap opens the sheet with no wait.
     $('#iShare').onclick = async () => {
-      const inv = read(); const btn = $('#iShare'); btn.disabled = true;
+      const btn = $('#iShare'); const say = (t, bad) => msg(t, bad);
+      if (sharePrep) {                                     // the second tap: nothing slow before the sheet
+        const r = await window.DocPDF.send(sharePrep, say, true);
+        if (r !== 'cancelled') { sharePrep = null; btn.textContent = 'Share PDF'; }
+        return;
+      }
+      const inv = read(); btn.disabled = true;
       try { await persist(inv); } catch (e) { msg('Not saved: ' + e.message, true); }
-      try { await window.DocPDF.share(inv, business, (t, bad) => msg(t, bad)); }
-      catch (e) { msg('Could not build the PDF: ' + e.message, true); }
+      try {
+        const p = await window.DocPDF.prepare(inv, business, say);
+        btn.disabled = false;
+        const r = await window.DocPDF.send(p, say);
+        if (r === 'needs-tap' || r === 'cancelled') {
+          sharePrep = p; btn.textContent = 'Send PDF';
+          msg('The PDF is ready — tap Send PDF to choose WhatsApp');
+        }
+      } catch (e) { msg('Could not build the PDF: ' + e.message, true); }
       if ($('#iShare')) $('#iShare').disabled = false;
     };
     if (!isInv) $('#iConvert').onclick = async () => {
