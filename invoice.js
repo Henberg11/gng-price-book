@@ -279,7 +279,8 @@
 
       <div class="actions">
         <button type="button" id="iSave">Save</button>
-        <button type="button" class="ghost" id="iPrint">Print / PDF</button>
+        <button type="button" class="ghost" id="iPrint">Print</button>
+        <button type="button" class="ghost" id="iShare">Share PDF</button>
         ${!isInv ? '<button type="button" class="ghost" id="iConvert">Convert to invoice</button>' : ''}
         <button type="button" class="ghost" id="iBack">Back</button>
       </div>
@@ -333,6 +334,14 @@
     $('#iBack').onclick = () => { stash(); renderList(); };
     $('#iSave').onclick = async () => { const inv = read(); const was = inv.number; $('#iSave').disabled = true; try { await persist(inv); if (inv.number !== was) { renderEditor(inv); } msg('Saved as ' + inv.number); } catch (e) { msg('Could not save: ' + e.message, true); } if ($('#iSave')) $('#iSave').disabled = false; };
     $('#iPrint').onclick = async () => { const inv = read(); try { await persist(inv); } catch (e) { msg('Saved locally only: ' + e.message, true); } printDoc(inv); };
+    // Share PDF: saves first, then draws the document as a real PDF and hands it to the share sheet.
+    $('#iShare').onclick = async () => {
+      const inv = read(); const btn = $('#iShare'); btn.disabled = true;
+      try { await persist(inv); } catch (e) { msg('Not saved: ' + e.message, true); }
+      try { await window.DocPDF.share(inv, business, (t, bad) => msg(t, bad)); }
+      catch (e) { msg('Could not build the PDF: ' + e.message, true); }
+      if ($('#iShare')) $('#iShare').disabled = false;
+    };
     if (!isInv) $('#iConvert').onclick = async () => {
       const pi = read(); try { await persist(pi); } catch (e) { return msg('Save the proforma first: ' + e.message, true); }
       const inv = JSON.parse(JSON.stringify(pi)); inv.type = 'invoice'; inv.number = nextNumber('invoice'); inv.date = today(); inv.status = 'draft'; inv.proforma_ref = pi.number; inv.created = new Date().toISOString(); delete inv.updated;
@@ -463,5 +472,7 @@
     setTimeout(() => window.print(), 250);
   }
 
-  window.Invoices = { open, calc, inWords, addFromItem, onPick, current, stash, resume: () => { if (editing) { if (!loaded) return open().then(() => renderEditor(editing)); renderEditor(editing); } else open(); }, _render: (inv, b, logo) => { business = b; logoUrl = logo; return docHtml(inv); } };
+  // what docpdf.js draws from, so the conditions of sale and the money formatting have one home
+  window.Invoices = { open, calc, inWords, addFromItem, onPick, current, stash,
+    _doc: { INR, fmtDate, noteList, legalName, CONDITIONS, QUOTE_VALIDITY }, resume: () => { if (editing) { if (!loaded) return open().then(() => renderEditor(editing)); renderEditor(editing); } else open(); }, _render: (inv, b, logo) => { business = b; logoUrl = logo; return docHtml(inv); } };
 })();
