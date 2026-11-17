@@ -328,23 +328,32 @@
   function offer(p, msg, why) {
     const url = URL.createObjectURL(p.file);
     setTimeout(() => URL.revokeObjectURL(url), 300000);
-    msg && msg(`${why} the PDF is ready — ${p.kb} KB.`, false, { url, name: p.name });
+    msg && msg(`${why} the PDF is ready, ${p.kb} KB:`, false, { url, name: p.name });
     return 'offered';
+  }
+
+  // canShare() is advisory and some browsers answer false for a PDF they will in fact share, so the
+  // sheet is always attempted. Only a refusal from share() itself is taken as an answer, and the
+  // reason is put on screen rather than swallowed.
+  function explain(e, hinted) {
+    if (!window.isSecureContext) return 'This page is not on a secure connection, so the share sheet is blocked —';
+    if (e && (e.name === 'TypeError' || e.name === 'NotSupportedError') || !hinted)
+      return 'This browser will not hand a PDF to the share sheet. Open the Price Book in Chrome to send straight to WhatsApp, or save it here and attach it yourself —';
+    return `The share sheet would not open (${e ? e.name + ': ' + (e.message || 'no reason given') : 'unknown'}) —`;
   }
 
   // Returns 'shared', 'cancelled', 'needs-tap' (the tap had expired - ask for one more) or 'offered'.
   // Call it straight from a click handler, with nothing slow awaited before it.
   async function send(p, msg, second) {
-    if (!navigator.share) return offer(p, msg, 'This browser cannot open the share sheet, so');
-    if (navigator.canShare && !navigator.canShare({ files: [p.file] }))
-      return offer(p, msg, 'This browser will not put a PDF into the share sheet, so');
+    if (!navigator.share) return offer(p, msg, 'This browser has no share sheet. Open the Price Book in Chrome to send straight to WhatsApp, or save it here and attach it yourself —');
+    const hinted = !navigator.canShare || navigator.canShare({ files: [p.file] });
     try {
       await navigator.share({ files: [p.file], title: p.name, text: p.text });
       msg && msg(`Shared ${p.name} (${p.kb} KB)`); return 'shared';
     } catch (e) {
       if (e.name === 'AbortError') { msg && msg('Share cancelled — the PDF is still ready, tap Send PDF to try again'); return 'cancelled'; }
-      if (!second) return 'needs-tap';
-      return offer(p, msg, `The share sheet would not open (${e.name}: ${e.message || 'no reason given'}), so`);
+      if (e.name === 'NotAllowedError' && !second) return 'needs-tap';     // the tap had gone stale: one more will do it
+      return offer(p, msg, explain(e, hinted));
     }
   }
 
