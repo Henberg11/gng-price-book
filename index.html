@@ -270,10 +270,13 @@
   <div class="list" id="list" hidden></div>
 </div>
 <div id="doc" class="doc" hidden></div>
-<script src="invoice.js"></script>
-<script src="docpdf.js"></script>
-<script src="selection.js"></script>
-<script src="tasks.js"></script>
+<!-- Bump PB_BUILD on every deploy: it is both the cache-buster on the scripts below and the
+     build the owner can read back under Business details when something looks stale. -->
+<script>window.PB_BUILD = "2026-11-17c";</script>
+<script src="invoice.js?v=2026-11-17c"></script>
+<script src="docpdf.js?v=2026-11-17c"></script>
+<script src="selection.js?v=2026-11-17c"></script>
+<script src="tasks.js?v=2026-11-17c"></script>
 <script>
 (function () {
   const $ = s => document.querySelector(s);

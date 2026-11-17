@@ -322,24 +322,29 @@
     return { file: new File([bytes], name, { type: 'application/pdf' }), name, text, kb: Math.round(bytes.length / 1024) };
   }
 
-  function download(p, msg, why) {
-    const url = URL.createObjectURL(p.file); const a = document.createElement('a');
-    a.href = url; a.download = p.name; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    msg && msg(`${why} ${p.name} has downloaded (${p.kb} KB) — open it from your downloads and share it from there.`);
-    return 'downloaded';
+  // A programmatic click on a blob link opens a blank tab in some Android browsers instead of
+  // saving, which looks like nothing happened. So the fallback offers a link to tap, never a click
+  // the page makes by itself.
+  function offer(p, msg, why) {
+    const url = URL.createObjectURL(p.file);
+    setTimeout(() => URL.revokeObjectURL(url), 300000);
+    msg && msg(`${why} the PDF is ready — ${p.kb} KB.`, false, { url, name: p.name });
+    return 'offered';
   }
 
-  // Returns 'shared', 'cancelled', 'needs-tap' (the gesture had expired - ask for one more tap) or
-  // 'downloaded'. Call it directly from a click handler, with nothing awaited before it.
+  // Returns 'shared', 'cancelled', 'needs-tap' (the tap had expired - ask for one more) or 'offered'.
+  // Call it straight from a click handler, with nothing slow awaited before it.
   async function send(p, msg, second) {
-    if (!navigator.canShare || !navigator.canShare({ files: [p.file] }))
-      return download(p, msg, 'This browser cannot open the share sheet, so');
-    try { await navigator.share({ files: [p.file], title: p.name, text: p.text }); msg && msg(`Shared ${p.name} (${p.kb} KB)`); return 'shared'; }
-    catch (e) {
-      if (e.name === 'AbortError') { msg && msg('Share cancelled — the PDF is still ready, tap again to send it'); return 'cancelled'; }
+    if (!navigator.share) return offer(p, msg, 'This browser cannot open the share sheet, so');
+    if (navigator.canShare && !navigator.canShare({ files: [p.file] }))
+      return offer(p, msg, 'This browser will not put a PDF into the share sheet, so');
+    try {
+      await navigator.share({ files: [p.file], title: p.name, text: p.text });
+      msg && msg(`Shared ${p.name} (${p.kb} KB)`); return 'shared';
+    } catch (e) {
+      if (e.name === 'AbortError') { msg && msg('Share cancelled — the PDF is still ready, tap Send PDF to try again'); return 'cancelled'; }
       if (!second) return 'needs-tap';
-      return download(p, msg, 'The share sheet would not open (' + (e.message || e.name) + '), so');
+      return offer(p, msg, `The share sheet would not open (${e.name}: ${e.message || 'no reason given'}), so`);
     }
   }
 

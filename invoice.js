@@ -339,10 +339,10 @@
     // and a browser only opens the sheet while it still counts the tap as live - so when that moment
     // has passed the button becomes "Send PDF" and the next tap opens the sheet with no wait.
     $('#iShare').onclick = async () => {
-      const btn = $('#iShare'); const say = (t, bad) => msg(t, bad);
+      const btn = $('#iShare'); const say = (t, bad, link) => msg(t, bad, link);   // the link is how a save is offered
       if (sharePrep) {                                     // the second tap: nothing slow before the sheet
         const r = await window.DocPDF.send(sharePrep, say, true);
-        if (r !== 'cancelled') { sharePrep = null; btn.textContent = 'Share PDF'; }
+        if (r === 'shared' || r === 'offered') { sharePrep = null; btn.textContent = 'Share PDF'; }
         return;
       }
       const inv = read(); btn.disabled = true;
@@ -353,7 +353,7 @@
         const r = await window.DocPDF.send(p, say);
         if (r === 'needs-tap' || r === 'cancelled') {
           sharePrep = p; btn.textContent = 'Send PDF';
-          msg('The PDF is ready — tap Send PDF to choose WhatsApp');
+          if (r === 'needs-tap') msg('The PDF is ready — tap Send PDF to choose WhatsApp');
         }
       } catch (e) { msg('Could not build the PDF: ' + e.message, true); }
       if ($('#iShare')) $('#iShare').disabled = false;
@@ -364,7 +364,14 @@
       pi.status = pi.status === 'draft' || pi.status === 'sent' ? 'accepted' : pi.status; try { await saveInvoice(pi); } catch (e) {}
       renderEditor(inv); msg('Invoice ' + inv.number + ' created from ' + pi.number + '. Save when ready.');
     };
-    const msg = (t, err) => { const m = $('#iStatusMsg'); m.textContent = t; m.classList.toggle('err', !!err); };
+    const msg = (t, err, link) => {
+      const m = $('#iStatusMsg'); m.textContent = t; m.classList.toggle('err', !!err);
+      if (!link) return;
+      const a = document.createElement('a');                // tapped by the owner, never clicked by the page
+      a.href = link.url; a.download = link.name; a.textContent = ' Save the PDF';
+      a.style.cssText = 'text-decoration:underline;white-space:nowrap';
+      m.appendChild(a);
+    };
     wire(); totals(); fitNotes();
   }
 
@@ -423,7 +430,8 @@
       <div class="field two"><div><label for="kIfsc">IFSC</label><input id="kIfsc" type="text" value="${esc(bank.ifsc || '')}"></div><div><label for="kUpi">UPI ID</label><input id="kUpi" type="text" value="${esc(bank.upi || '')}"></div></div>
       <div class="field"><label for="bTerms">Default terms</label><textarea id="bTerms" rows="3">${esc(b.terms || '')}</textarea></div>
       <div class="field"><label for="bPI">Proforma note</label><textarea id="bPI" rows="2">${esc(b.proforma_note || '')}</textarea></div>
-      <div class="actions"><button type="button" id="bSave">Save</button><button type="button" class="ghost" id="bBack">Back</button></div><div class="status" id="bMsg"></div></div></div>`;
+      <div class="actions"><button type="button" id="bSave">Save</button><button type="button" class="ghost" id="bBack">Back</button></div><div class="status" id="bMsg"></div>
+      <p class="desc">Price Book build ${esc(window.PB_BUILD || 'unknown')}. If something looks out of date, pull down to refresh and check this changes.</p></div></div>`;
     $('#bBack').onclick = renderList;
     $('#bSave').onclick = async () => {
       const gstin = $('#bGstin').value.trim().toUpperCase();
